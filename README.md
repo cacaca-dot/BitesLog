@@ -1,6 +1,6 @@
-# biteslog
+# BitesLog
 
-A new Flutter project.
+A caffe journaling project that feels like letterbox but for caffe
 
 ## Getting Started
 
