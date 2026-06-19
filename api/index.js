@@ -12,4 +12,15 @@ app.get("/health", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+const pool = require("./db");
+
+// route tes koneksi database
+app.get("/db-test", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()");
+    res.json({ status: "ok", waktu_server_db: result.rows[0].now });
+  } catch (err) {
+    res.status(500).json({ status: "error", pesan: err.message });
+  }
+});
 app.listen(PORT, () => console.log(`Server jalan di http://localhost:${PORT}`));
