@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../feed/home_page.dart';
 import '../discover/discover_page.dart';
+import '../lists/lists_page.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -17,7 +18,7 @@ class _MainShellState extends State<MainShell> {
     HomePage(),
     DiscoverPage(),
     _Soon(title: 'Log Visit'),
-    _Soon(title: 'Lists'),
+    ListsPage(),
     _Soon(title: 'Profile'),
   ];
 
@@ -30,11 +31,31 @@ class _MainShellState extends State<MainShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         indicatorColor: AppColors.primary,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: Colors.white), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore, color: Colors.white), label: 'Discover'),
-          NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle, color: Colors.white), label: 'Log'),
-          NavigationDestination(icon: Icon(Icons.list_alt_outlined), selectedIcon: Icon(Icons.list_alt, color: Colors.white), label: 'Lists'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: Colors.white), label: 'Profile'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home, color: Colors.white),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore, color: Colors.white),
+            label: 'Discover',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle, color: Colors.white),
+            label: 'Log',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.list_alt_outlined),
+            selectedIcon: Icon(Icons.list_alt, color: Colors.white),
+            label: 'Lists',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person, color: Colors.white),
+            label: 'Profile',
+          ),
         ],
       ),
     );
