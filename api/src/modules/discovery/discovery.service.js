@@ -5,18 +5,19 @@ const repo = require('./discovery.repository');
 // SEARCH
 // ============================================
 
-async function searchAll(keyword) {
-  if (!keyword || keyword.trim().length === 0) {
-    return { cafes: [], users: [], lists: [] };
-  }
+async function searchUsers(keyword, userId) {
+  if (!keyword || keyword.trim().length === 0) return [];
+  return await repo.searchUsers(keyword.trim(), userId);
+}
 
-  const [cafes, users, lists] = await Promise.all([
-    repo.searchCafes(keyword.trim()),
-    repo.searchUsers(keyword.trim()),
-    repo.searchLists(keyword.trim())
-  ]);
+async function searchCafes(keyword) {
+  if (!keyword || keyword.trim().length === 0) return [];
+  return await repo.searchCafes(keyword.trim());
+}
 
-  return { cafes, users, lists };
+async function searchLists(keyword, userId) {
+  if (!keyword || keyword.trim().length === 0) return [];
+  return await repo.searchLists(keyword.trim(), userId);
 }
 
 // ============================================
@@ -52,6 +53,8 @@ async function getDiscover(userId) {
 }
 
 module.exports = {
-  searchAll,
+  searchUsers,
+  searchCafes,
+  searchLists,
   getDiscover
 };

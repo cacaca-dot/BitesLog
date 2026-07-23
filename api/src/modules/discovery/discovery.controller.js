@@ -7,19 +7,31 @@ const discoveryService = require('./discovery.service');
 
 async function search(req, res) {
   try {
-    const { q } = req.query;
+    let { q, type } = req.query;
     
-    if (!q || q.trim().length === 0) {
+    if (!q || q.trim().length < 2) {
       return res.json({
-        data: { cafes: [], users: [], lists: [] },
-        message: 'Masukkan keyword pencarian'
+        data: [],
+        message: 'Masukkan minimal 2 karakter'
       });
     }
+    
+    type = type || 'user';
+    if (!['user', 'cafe', 'list'].includes(type)) {
+      return res.status(400).json({ error: { code: 'INVALID_TYPE', message: 'Tipe pencarian tidak valid' }});
+    }
 
-    const results = await discoveryService.searchAll(q);
+    let results = [];
+    if (type === 'user') {
+      results = await discoveryService.searchUsers(q, req.user.id);
+    } else if (type === 'cafe') {
+      results = await discoveryService.searchCafes(q);
+    } else if (type === 'list') {
+      results = await discoveryService.searchLists(q, req.user.id);
+    }
+
     res.json({
-      data: results,
-      total: results.cafes.length + results.users.length + results.lists.length
+      data: results
     });
   } catch (err) {
     res.status(500).json({

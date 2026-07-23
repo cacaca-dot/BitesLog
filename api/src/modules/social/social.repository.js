@@ -80,14 +80,26 @@ async function getFollowing(userId) {
 
 async function getFeed(userId, limit = 20) {
   const result = await pool.query(
-    `SELECT 
-       v.id as visit_id,
-       v.visit_date,
-       v.rating,
-       v.review,
-       v.favorite_drink,
-       v.photo_path,
-       v.created_at,
+    `WITH followed_visits AS (
+       SELECT v.*,
+         ROW_NUMBER() OVER (PARTITION BY v.user_id ORDER BY v.created_at DESC) AS user_rank
+       FROM visits v
+       JOIN follows f ON f.following_id = v.user_id
+       WHERE f.follower_id = $1
+     ),
+     feed_visits AS (
+       SELECT * FROM followed_visits WHERE user_rank <= 10
+       UNION ALL
+       SELECT v.*, 0 AS user_rank FROM visits v WHERE v.user_id = $1
+     )
+     SELECT 
+       fv.id as visit_id,
+       fv.visit_date,
+       fv.rating,
+       fv.review,
+       fv.favorite_drink,
+       fv.photo_path,
+       fv.created_at,
        u.id as user_id,
        u.username,
        u.full_name,
@@ -95,22 +107,25 @@ async function getFeed(userId, limit = 20) {
        c.id as cafe_id,
        c.name as cafe_name,
        c.city as cafe_city,
-       (SELECT COUNT(*) FROM likes WHERE target_type = 'review' AND target_id = v.id) as like_count,
-       (SELECT COUNT(*) FROM comments WHERE target_type = 'review' AND target_id = v.id) as comment_count
-     FROM visits v
-     JOIN users u ON u.id = v.user_id
-     JOIN cafes c ON c.id = v.cafe_id
-     WHERE v.user_id IN (
-       SELECT following_id FROM follows WHERE follower_id = $1
-     )
-     ORDER BY v.created_at DESC
+       (
+         SELECT COALESCE(json_agg(json_build_object('url', vp.url, 'position', vp."position") ORDER BY vp."position" ASC), '[]'::json)
+         FROM visit_photos vp
+         WHERE vp.visit_id = fv.id
+       ) as photos,
+       (SELECT COUNT(*) FROM likes WHERE target_type = 'review' AND target_id = fv.id) as like_count,
+       (SELECT COUNT(*) FROM comments WHERE target_type = 'review' AND target_id = fv.id) as comment_count,
+       EXISTS(SELECT 1 FROM likes WHERE target_type = 'review' AND target_id = fv.id AND user_id = $1) as is_liked
+     FROM feed_visits fv
+     JOIN users u ON u.id = fv.user_id
+     JOIN cafes c ON c.id = fv.cafe_id
+     ORDER BY fv.created_at DESC
      LIMIT $2`,
     [userId, limit]
   );
   return result.rows;
 }
 
-async function getPopularFeed(limit = 20) {
+async function getPopularFeed(userId, limit = 20) {
   const result = await pool.query(
     `SELECT 
        v.id as visit_id,
@@ -127,14 +142,20 @@ async function getPopularFeed(limit = 20) {
        c.id as cafe_id,
        c.name as cafe_name,
        c.city as cafe_city,
+       (
+         SELECT COALESCE(json_agg(json_build_object('url', vp.url, 'position', vp."position") ORDER BY vp."position" ASC), '[]'::json)
+         FROM visit_photos vp
+         WHERE vp.visit_id = v.id
+       ) as photos,
        (SELECT COUNT(*) FROM likes WHERE target_type = 'review' AND target_id = v.id) as like_count,
-       (SELECT COUNT(*) FROM comments WHERE target_type = 'review' AND target_id = v.id) as comment_count
+       (SELECT COUNT(*) FROM comments WHERE target_type = 'review' AND target_id = v.id) as comment_count,
+       EXISTS(SELECT 1 FROM likes WHERE target_type = 'review' AND target_id = v.id AND user_id = $1) as is_liked
      FROM visits v
      JOIN users u ON u.id = v.user_id
      JOIN cafes c ON c.id = v.cafe_id
      ORDER BY v.created_at DESC
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [userId, limit]
   );
   return result.rows;
 }
@@ -184,12 +205,20 @@ async function getLikeCount(targetType, targetId) {
 // COMMENTS
 // ============================================
 
-async function createComment(userId, targetType, targetId, commentText) {
+async function createComment(userId, targetType, targetId, commentText, parentCommentId = null) {
   const result = await pool.query(
-    `INSERT INTO comments (user_id, target_type, target_id, comment_text)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, user_id, target_type, target_id, comment_text, created_at`,
-    [userId, targetType, targetId, commentText]
+    `INSERT INTO comments (user_id, target_type, target_id, comment_text, parent_comment_id)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, user_id, target_type, target_id, comment_text, parent_comment_id, created_at`,
+    [userId, targetType, targetId, commentText, parentCommentId]
+  );
+  return result.rows[0];
+}
+
+async function getCommentById(commentId) {
+  const result = await pool.query(
+    `SELECT * FROM comments WHERE id = $1`,
+    [commentId]
   );
   return result.rows[0];
 }
@@ -206,12 +235,12 @@ async function deleteComment(commentId, userId) {
 
 async function getComments(targetType, targetId, limit = 20) {
   const result = await pool.query(
-    `SELECT c.id, c.comment_text, c.created_at,
+    `SELECT c.id, c.comment_text, c.created_at, c.parent_comment_id,
             u.id as user_id, u.username, u.full_name, u.avatar_url
      FROM comments c
      JOIN users u ON u.id = c.user_id
      WHERE c.target_type = $1 AND c.target_id = $2
-     ORDER BY c.created_at DESC
+     ORDER BY c.created_at ASC
      LIMIT $3`,
     [targetType, targetId, limit]
   );
@@ -258,6 +287,7 @@ module.exports = {
   getLikeCount,
   // Comments
   createComment,
+  getCommentById,
   deleteComment,
   getComments,
   getCommentCount,

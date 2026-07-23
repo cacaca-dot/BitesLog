@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import '../shell/main_shell.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -34,9 +35,14 @@ class _AuthScreenState extends State<AuthScreen> {
         if ((result['status'] as String?) == 'success') {
           final data = result['data'] as Map<String, dynamic>?;
           final token = data?['token'] as String?;
-          if (token != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('auth_token', token);
+          final user = data?['user'] as Map<String, dynamic>?;
+          
+          if (token != null && user != null) {
+            await AuthService.saveToken(
+              token, 
+              user['username']?.toString() ?? '', 
+              user['id']?.toString() ?? ''
+            );
             if (!mounted) return;
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const MainShell()),
@@ -111,9 +117,15 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    validator: (v) => (v == null || !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v)) ? 'Email tidak valid' : null,
+                    keyboardType: _isLogin ? TextInputType.text : TextInputType.emailAddress,
+                    decoration: InputDecoration(labelText: _isLogin ? 'Email/Username' : 'Email'),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Wajib diisi';
+                      if (!_isLogin && !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v)) {
+                        return 'Email tidak valid';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

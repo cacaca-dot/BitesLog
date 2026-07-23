@@ -1,77 +1,431 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
+import '../../services/api_service.dart';
+import '../../models/cafe.dart';
+import '../cafes/cafe_detail_page.dart';
+import '../search/search_page.dart';
+import '../../core/utils.dart';
 
-// ---- Model dummy ----
-class Cafe {
-  final String name;
-  final String category;
-  final String imageUrl;
-  final double rating; // 0 - 5
+class DiscoverPage extends StatefulWidget {
+  const DiscoverPage({super.key});
 
-  const Cafe({
-    required this.name,
-    required this.category,
-    required this.imageUrl,
-    required this.rating,
-  });
+  @override
+  State<DiscoverPage> createState() => _DiscoverPageState();
 }
 
-// ---- Data dummy (nanti diganti data dari server) ----
-const _popular = <Cafe>[
-  Cafe(name: 'Kopi Senja', category: 'Coffee', rating: 4.5,
-      imageUrl: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=400'),
-  Cafe(name: 'Matcha House', category: 'Matcha', rating: 5.0,
-      imageUrl: 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?w=400'),
-  Cafe(name: 'Roti & Co', category: 'Bakery', rating: 4.0,
-      imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400'),
-];
+class _DiscoverPageState extends State<DiscoverPage> {
+  List<Cafe> _catalog = [];
+  List<Cafe> _popular = [];
+  bool _loading = true;
+  String? _error;
 
-const _matcha = <Cafe>[
-  Cafe(name: 'Ippudo Matcha', category: 'Matcha', rating: 4.5,
-      imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=400'),
-  Cafe(name: 'Greenery', category: 'Matcha', rating: 4.0,
-      imageUrl: 'https://images.unsplash.com/photo-1464347601390-9a9e0b96d5f?w=400'),
-  Cafe(name: 'Zen Cup', category: 'Matcha', rating: 5.0,
-      imageUrl: 'https://images.unsplash.com/photo-1515442261605-65987783cb6a?w=400'),
-];
+  // Filter state
+  List<String> _availableCategories = [];
+  List<String> _availableCities = [];
+  List<String> _availableAreas = [];
+  
+  List<String> _selectedCategories = [];
+  List<String> _selectedAreas = [];
+  String? _selectedMinRating;
+  List<String> _selectedPrices = [];
+  String? _selectedCity;
 
-const _followed = <Cafe>[
-  Cafe(name: 'Brew Bros', category: 'Coffee', rating: 4.5,
-      imageUrl: 'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=400'),
-  Cafe(name: 'Sunny Side', category: 'Brunch', rating: 4.0,
-      imageUrl: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400'),
-];
+  @override
+  void initState() {
+    super.initState();
+    _fetchFilters();
+    _fetchData();
+  }
 
-const _catalog = <Cafe>[
-  ..._popular, ..._matcha, ..._followed,
-];
+  Future<void> _fetchFilters() async {
+    try {
+      final filters = await ApiService.getFilters();
+      if (mounted) {
+        setState(() {
+          _availableCategories = List<String>.from(filters['categories'] ?? []);
+          _availableCities = List<String>.from(filters['cities'] ?? []);
+          _availableAreas = List<String>.from(filters['areas'] ?? []);
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch filters: $e');
+    }
+  }
 
-class DiscoverPage extends StatelessWidget {
-  const DiscoverPage({super.key});
+  Future<void> _fetchData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    
+    try {
+      final data = await ApiService.getCafes(
+        categories: _selectedCategories.isNotEmpty ? _selectedCategories : null,
+        areas: _selectedAreas.isNotEmpty ? _selectedAreas : null,
+        city: _selectedCity,
+        minRating: _selectedMinRating != null ? double.tryParse(_selectedMinRating!) : null,
+        priceRange: _selectedPrices.isNotEmpty ? _selectedPrices.join(',') : null,
+      );
+      final List<Cafe> parsedCafes = data.map((e) => Cafe.fromJson(e as Map<String, dynamic>)).toList();
+      
+      if (mounted) {
+        setState(() {
+          _catalog = parsedCafes;
+          if (!_isFilterActive) {
+            _popular = List<Cafe>.from(parsedCafes)..sort((a, b) => b.visitCount.compareTo(a.visitCount));
+          }
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  bool get _isFilterActive => _selectedCategories.isNotEmpty || _selectedAreas.isNotEmpty || _selectedMinRating != null || _selectedPrices.isNotEmpty || _selectedCity != null;
+  int get _activeFilterCount => _selectedCategories.length + _selectedAreas.length + (_selectedMinRating != null ? 1 : 0) + _selectedPrices.length + (_selectedCity != null ? 1 : 0);
+
+  void _resetFilters() {
+    setState(() {
+      _selectedCategories.clear();
+      _selectedAreas.clear();
+      _selectedMinRating = null;
+      _selectedPrices.clear();
+      _selectedCity = null;
+    });
+    _fetchData();
+  }
+
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return FractionallySizedBox(
+              heightFactor: 0.8,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Filter Cafe', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                      ],
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          const Text('Kategori', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: _availableCategories.map((c) {
+                              final isSelected = _selectedCategories.contains(c);
+                              return FilterChip(
+                                label: Text(c),
+                                selected: isSelected,
+                                selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    if (val) _selectedCategories.add(c);
+                                    else _selectedCategories.remove(c);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text('Rating Minimum', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: ['3.0', '4.0', '4.5'].map((r) {
+                              final isSelected = _selectedMinRating == r;
+                              return ChoiceChip(
+                                label: Text('$r+'),
+                                selected: isSelected,
+                                selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    _selectedMinRating = val ? r : null;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text('Harga', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: PriceHelper.availableRanges.map((p) {
+                              final isSelected = _selectedPrices.contains(p);
+                              return FilterChip(
+                                label: Text(PriceHelper.getFullLabel(p)),
+                                selected: isSelected,
+                                selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    if (val) _selectedPrices.add(p);
+                                    else _selectedPrices.remove(p);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text('Kota', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _selectedCity,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            hint: const Text('Semua Kota'),
+                            items: [
+                              const DropdownMenuItem(value: null, child: Text('Semua Kota')),
+                              ..._availableCities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                            ],
+                            onChanged: (val) {
+                              setModalState(() => _selectedCity = val);
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          const Text('Area / Kecamatan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: _availableAreas.map((a) {
+                              final isSelected = _selectedAreas.contains(a);
+                              return FilterChip(
+                                label: Text(a),
+                                selected: isSelected,
+                                selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    if (val) _selectedAreas.add(a);
+                                    else _selectedAreas.remove(a);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setModalState(() {
+                                _selectedCategories.clear();
+                                _selectedAreas.clear();
+                                _selectedMinRating = null;
+                                _selectedPrices.clear();
+                                _selectedCity = null;
+                              });
+                            },
+                            child: const Text('Reset'),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              setState(() {}); // Apply state visually
+                              _fetchData();
+                            },
+                            child: const Text('Terapkan'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Widget _buildActiveFilters() {
+    if (!_isFilterActive) return const SizedBox.shrink();
+
+    final List<Widget> chips = [];
+    
+    for (var c in _selectedCategories) {
+      chips.add(InputChip(
+        label: Text(c, style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedCategories.remove(c));
+          _fetchData();
+        },
+      ));
+    }
+    
+    for (var a in _selectedAreas) {
+      chips.add(InputChip(
+        label: Text(a, style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedAreas.remove(a));
+          _fetchData();
+        },
+      ));
+    }
+    
+    if (_selectedMinRating != null) {
+      chips.add(InputChip(
+        label: Text('⭐ $_selectedMinRating+', style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedMinRating = null);
+          _fetchData();
+        },
+      ));
+    }
+
+    for (var p in _selectedPrices) {
+      chips.add(InputChip(
+        label: Text(PriceHelper.getShortLabel(p), style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedPrices.remove(p));
+          _fetchData();
+        },
+      ));
+    }
+
+    if (_selectedCity != null) {
+      chips.add(InputChip(
+        label: Text(_selectedCity!, style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedCity = null);
+          _fetchData();
+        },
+      ));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Wrap(
+          spacing: 8,
+          children: chips,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        foregroundColor: AppColors.text,
+        actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                onPressed: _showFilterBottomSheet,
+              ),
+              if (_isFilterActive)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$_activeFilterCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: SafeArea(
-        child: ListView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Discover',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-            ),
             const _SearchBar(),
-            const _RowSection(title: 'Popular this week', cafes: _popular),
-            const _RowSection(title: 'Because you like matcha', cafes: _matcha),
-            const _RowSection(title: 'Loved by people you follow', cafes: _followed),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text('Browse catalog',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            _buildActiveFilters(),
+            Expanded(
+              child: _loading 
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Gagal memuat: $_error', style: const TextStyle(color: Colors.red)),
+                              const SizedBox(height: 12),
+                              ElevatedButton(onPressed: _fetchData, child: const Text('Coba Lagi')),
+                            ],
+                          ),
+                        )
+                      : _catalog.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.search_off, size: 48, color: Colors.grey),
+                                  const SizedBox(height: 16),
+                                  const Text('Nggak ada cafe yang cocok sama filter ini.', style: TextStyle(color: Colors.grey)),
+                                  if (_isFilterActive)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 16),
+                                      child: OutlinedButton(
+                                        onPressed: _resetFilters,
+                                        child: const Text('Reset Filter'),
+                                      ),
+                                    )
+                                ],
+                              ),
+                            )
+                          : ListView(
+                              children: [
+                                if (!_isFilterActive && _popular.isNotEmpty)
+                                  _RowSection(title: 'Popular this week', cafes: _popular),
+                                
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                                  child: Text(_isFilterActive ? 'Hasil Filter (${_catalog.length})' : 'Browse catalog',
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                ),
+                                
+                                _CatalogGrid(catalog: _catalog),
+                                const SizedBox(height: 24),
+                              ],
+                            ),
             ),
-            const _CatalogGrid(),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -79,7 +433,6 @@ class DiscoverPage extends StatelessWidget {
   }
 }
 
-// ---- Search bar (dummy, belum berfungsi) ----
 class _SearchBar extends StatelessWidget {
   const _SearchBar();
 
@@ -88,8 +441,17 @@ class _SearchBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: TextField(
+        readOnly: true,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const SearchPage(initialTabIndex: 0),
+            ),
+          );
+        },
         decoration: InputDecoration(
-          hintText: 'Cari cafe...',
+          hintText: 'Cari cafe, orang, atau list...',
           prefixIcon: const Icon(Icons.search),
           filled: true,
           fillColor: AppColors.card,
@@ -104,7 +466,6 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-// ---- Baris tema (horizontal) ----
 class _RowSection extends StatelessWidget {
   final String title;
   final List<Cafe> cafes;
@@ -135,9 +496,9 @@ class _RowSection extends StatelessWidget {
   }
 }
 
-// ---- Grid katalog ----
 class _CatalogGrid extends StatelessWidget {
-  const _CatalogGrid();
+  final List<Cafe> catalog;
+  const _CatalogGrid({required this.catalog});
 
   @override
   Widget build(BuildContext context) {
@@ -145,19 +506,18 @@ class _CatalogGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _catalog.length,
+      itemCount: catalog.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
         childAspectRatio: 0.72,
       ),
-      itemBuilder: (_, i) => _CafeCard(cafe: _catalog[i]),
+      itemBuilder: (_, i) => _CafeCard(cafe: catalog[i]),
     );
   }
 }
 
-// ---- Kartu cafe (dipakai baris & grid) ----
 class _CafeCard extends StatelessWidget {
   final Cafe cafe;
   final double? width;
@@ -165,9 +525,16 @@ class _CafeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: cafe.id)),
+        );
+      },
+      child: Container(
+        width: width,
+        decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
@@ -184,14 +551,19 @@ class _CafeCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 16 / 10,
-            child: Image.network(
-              cafe.imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: AppColors.accent,
-                child: const Icon(Icons.local_cafe, color: Colors.white),
-              ),
-            ),
+            child: (cafe.imageUrl.isNotEmpty && cafe.imageUrl.startsWith('http')) 
+              ? Image.network(
+                  cafe.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    color: AppColors.card,
+                    child: const Icon(Icons.local_cafe, color: AppColors.secondary, size: 40),
+                  ),
+                )
+              : Container(
+                  color: AppColors.card,
+                  child: const Icon(Icons.local_cafe, color: AppColors.secondary, size: 40),
+                ),
           ),
           Padding(
             padding: const EdgeInsets.all(10),
@@ -201,62 +573,33 @@ class _CafeCard extends StatelessWidget {
                 Text(cafe.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
-                const SizedBox(height: 6),
-                _StarRow(rating: cafe.rating),
-                const SizedBox(height: 6),
-                _CategoryChip(label: cafe.category),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(cafe.city,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.orange, size: 14),
+                    const SizedBox(width: 4),
+                    Text(cafe.rating.toStringAsFixed(1),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    if (cafe.priceRange != null && cafe.priceRange!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text('•', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Text(PriceHelper.getFullLabel(cafe.priceRange!), style: const TextStyle(color: Colors.green, fontSize: 12)),
+                    ]
+                  ],
+                ),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-// ---- Bintang setengah ----
-class _StarRow extends StatelessWidget {
-  final double rating;
-  const _StarRow({required this.rating});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(5, (i) {
-        IconData icon;
-        if (rating >= i + 1) {
-          icon = Icons.star;
-        } else if (rating >= i + 0.5) {
-          icon = Icons.star_half;
-        } else {
-          icon = Icons.star_border;
-        }
-        return Icon(icon, size: 16, color: AppColors.primary);
-      }),
-    );
-  }
-}
-
-// ---- Chip kategori ----
-class _CategoryChip extends StatelessWidget {
-  final String label;
-  const _CategoryChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text)),
+    ),
     );
   }
 }

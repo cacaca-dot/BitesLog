@@ -1,6 +1,9 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
 });
@@ -11,7 +14,6 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
     console.error('❌ Database connection error', err);
-    process.exit(-1);
 });
 
 module.exports = pool;

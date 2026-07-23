@@ -25,6 +25,12 @@ class AuthService {
     return prefs.getString(_usernameKey);
   }
 
+  // Ambil user_id
+  static Future<String?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userIdKey);
+  }
+
   // Cek apakah sudah login
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
@@ -37,5 +43,6 @@ class AuthService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_usernameKey);
     await prefs.remove(_userIdKey);
+    await prefs.clear(); // Bersihkan semua key untuk memastikan
   }
 }

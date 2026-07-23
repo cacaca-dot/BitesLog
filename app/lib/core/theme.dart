@@ -15,12 +15,19 @@ final appTheme = ThemeData(
     seedColor: AppColors.primary,
     primary: AppColors.primary,
     secondary: AppColors.secondary,
+    surface: AppColors.card,
+    background: AppColors.background,
   ),
   appBarTheme: const AppBarTheme(
-    backgroundColor: AppColors.primary,
-    foregroundColor: Colors.white,
+    backgroundColor: Colors.transparent,
+    foregroundColor: AppColors.text,
     elevation: 0,
     centerTitle: true,
+  ),
+  tabBarTheme: const TabBarThemeData(
+    labelColor: AppColors.primary,
+    unselectedLabelColor: AppColors.secondary,
+    indicatorColor: AppColors.primary,
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(

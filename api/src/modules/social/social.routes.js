@@ -19,6 +19,7 @@ router.post('/likes', socialController.toggleLike);
 router.delete('/likes', socialController.toggleLike);
 
 // ===== COMMENTS =====
+router.get('/comments', socialController.getComments);
 router.post('/comments', socialController.addComment);
 router.delete('/comments/:id', socialController.deleteComment);
 

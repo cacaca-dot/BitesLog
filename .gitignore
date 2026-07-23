@@ -1,6 +1,9 @@
 # Aturan Utama (Node.js & Global)
+node_modules/
 **/node_modules/
 .env
+.env.*
+*.env
 .idea/
 **/.idea/
 

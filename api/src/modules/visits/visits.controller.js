@@ -20,7 +20,8 @@ async function getVisits(req, res) {
 async function getVisitById(req, res) {
   try {
     const { id } = req.params;
-    const visit = await visitService.getVisitDetail(id);
+    const userId = req.user ? req.user.id : null;
+    const visit = await visitService.getVisitDetail(id, userId);
     
     if (!visit) {
       return res.status(404).json({
@@ -31,6 +32,11 @@ async function getVisitById(req, res) {
     res.json({ data: visit });
   } catch (err) {
     console.error('❌ Error getVisitById:', err.message);
+    if (err.code === 'FORBIDDEN') {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: err.message }
+      });
+    }
     res.status(500).json({
       error: { code: 'SERVER_ERROR', message: err.message }
     });
@@ -40,6 +46,14 @@ async function getVisitById(req, res) {
 async function createVisit(req, res) {
   try {
     const userId = req.user.id;
+    
+    // Validasi maksimal 4 foto
+    if (req.body.photos && Array.isArray(req.body.photos)) {
+      if (req.body.photos.length > 4) {
+        throw new Error('Maksimal 4 foto yang diperbolehkan');
+      }
+    }
+
     const visit = await visitService.logVisit(req.body, userId);
     
     res.status(201).json({
@@ -58,6 +72,14 @@ async function updateVisit(req, res) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    
+    // Validasi maksimal 4 foto
+    if (req.body.photos && Array.isArray(req.body.photos)) {
+      if (req.body.photos.length > 4) {
+        throw new Error('Maksimal 4 foto yang diperbolehkan');
+      }
+    }
+
     const updated = await visitService.editVisit(id, userId, req.body);
     
     res.json({
