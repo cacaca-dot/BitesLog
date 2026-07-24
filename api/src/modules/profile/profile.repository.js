@@ -70,7 +70,7 @@ async function getUserTasteTag(userId) {
      JOIN cafes c ON c.id = v.cafe_id
      WHERE v.user_id = $1 AND array_length(c.categories, 1) > 0
      GROUP BY unnest(c.categories)
-     ORDER BY count DESC
+     ORDER BY count DESC, category ASC
      LIMIT 1`,
     [userId]
   );
@@ -79,20 +79,24 @@ async function getUserTasteTag(userId) {
   const drinkResult = await pool.query(
     `SELECT favorite_drink, COUNT(*) as count
      FROM visits
-     WHERE user_id = $1 AND favorite_drink IS NOT NULL
+     WHERE user_id = $1 AND favorite_drink IS NOT NULL AND favorite_drink <> ''
      GROUP BY favorite_drink
      ORDER BY count DESC
      LIMIT 1`,
     [userId]
   );
 
-  // Mapping tag
+  // T1 FIX: tagMap pakai nama kategori bahasa Indonesia sesuai data DB
+  // Kategori valid: 'Kopi','Non-Kopi','Dessert','Roti','Kue','Makanan Berat','Brunch','Lainnya'
   const tagMap = {
-    'Matcha': { tag: 'Matcha Lover', emoji: '🍵' },
-    'Coffee': { tag: 'Coffee Enthusiast', emoji: '☕' },
-    'Tea': { tag: 'Tea Lover', emoji: '🫖' },
-    'Dessert': { tag: 'Dessert Hunter', emoji: '🍰' },
-    'Specialty': { tag: 'Specialty Coffee Geek', emoji: '🔬' }
+    'Kopi':          { tag: 'Coffee Lover',        emoji: '☕' },
+    'Non-Kopi':      { tag: 'Non-Coffee Explorer', emoji: '🧃' },
+    'Dessert':       { tag: 'Dessert Hunter',       emoji: '🍰' },
+    'Roti':          { tag: 'Pastry Lover',         emoji: '🥐' },
+    'Kue':           { tag: 'Sweet Tooth',          emoji: '🍮' },
+    'Makanan Berat': { tag: 'Food & Cafe Hopper',   emoji: '🍽️' },
+    'Brunch':        { tag: 'Brunch Enthusiast',    emoji: '🥞' },
+    'Lainnya':       { tag: 'Cafe Explorer',        emoji: '🗺️' },
   };
 
   let tag = 'Cafe Hopper';
@@ -106,13 +110,37 @@ async function getUserTasteTag(userId) {
     tag = tagMap[topCategory].tag;
     emoji = tagMap[topCategory].emoji;
   } else if (topDrink) {
-    // Cek berdasarkan minuman
-    if (topDrink.toLowerCase().includes('matcha')) {
+    // T2 FIX: cek minuman dengan keyword bahasa Indonesia & Inggris
+    const drink = topDrink.toLowerCase();
+    if (drink.includes('matcha')) {
       tag = 'Matcha Lover';
       emoji = '🍵';
-    } else if (topDrink.toLowerCase().includes('coffee') || topDrink.toLowerCase().includes('latte')) {
+    } else if (
+      drink.includes('kopi') ||
+      drink.includes('coffee') ||
+      drink.includes('latte') ||
+      drink.includes('espresso') ||
+      drink.includes('americano') ||
+      drink.includes('cappuccino') ||
+      drink.includes('long black')
+    ) {
       tag = 'Coffee Connoisseur';
       emoji = '☕';
+    } else if (
+      drink.includes('teh') ||
+      drink.includes('tea') ||
+      drink.includes('chai')
+    ) {
+      tag = 'Tea Lover';
+      emoji = '🫖';
+    } else if (
+      drink.includes('susu') ||
+      drink.includes('milk') ||
+      drink.includes('coklat') ||
+      drink.includes('chocolate')
+    ) {
+      tag = 'Milk Bar Fan';
+      emoji = '🥛';
     }
   }
 
@@ -257,7 +285,18 @@ async function getUserVisits(userId) {
 async function getUserPublicLists(userId) {
   const result = await pool.query(
     `SELECT l.id, l.title, l.description, l.is_public, l.user_id, l.created_at, l.updated_at,
-            (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) as item_count
+            (SELECT COUNT(*)::int FROM list_items li WHERE li.list_id = l.id) as cafe_count,
+            COALESCE((
+              SELECT array_agg(c.image_url)
+              FROM (
+                SELECT c2.image_url 
+                FROM list_items li2 
+                JOIN cafes c2 ON li2.cafe_id = c2.id 
+                WHERE li2.list_id = l.id 
+                ORDER BY li2.position ASC 
+                LIMIT 4
+              ) c
+            ), '{}'::text[]) AS covers
      FROM lists l
      WHERE l.user_id = $1 AND l.is_public = true
      ORDER BY l.updated_at DESC`,

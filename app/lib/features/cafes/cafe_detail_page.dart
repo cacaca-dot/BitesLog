@@ -460,7 +460,7 @@ class _CafeDetailPageState extends State<CafeDetailPage> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () => _toggleWatchlist(c['is_in_watchlist'] == true),
-                          icon: Icon(c['is_in_watchlist'] == true ? Icons.bookmark : Icons.bookmark_add_outlined, 
+                          icon: Icon(c['is_in_watchlist'] == true ? Icons.push_pin : Icons.push_pin_outlined, 
                             color: c['is_in_watchlist'] == true ? AppColors.primary : AppColors.secondary),
                           label: Text(
                             c['is_in_watchlist'] == true ? '✓ Ingin Dikunjungi' : 'Ingin Dikunjungi',

@@ -99,13 +99,13 @@ class _CafePickerSheetState extends State<CafePickerSheet> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text('🔍 Cafe "${_searchController.text}" nggak ketemu',
+                                    Text('Kafe "${_searchController.text}" tidak ditemukan',
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(color: AppColors.secondary)),
                                     const SizedBox(height: 16),
                                     ElevatedButton.icon(
                                       icon: const Icon(Icons.add),
-                                      label: Text('Tambah "${_searchController.text}" jadi cafe baru', textAlign: TextAlign.center),
+                                      label: const Text('Tambahkan sebagai kafe baru', textAlign: TextAlign.center),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.primary,
                                         foregroundColor: Colors.white,

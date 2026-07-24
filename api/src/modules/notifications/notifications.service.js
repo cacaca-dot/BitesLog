@@ -1,9 +1,9 @@
 // src/modules/notifications/notifications.service.js
 const repo = require('./notifications.repository');
 
-async function addNotification(userId, actorId, type, targetType, targetId) {
+async function addNotification(userId, actorId, type, targetType, targetId, commentId = null) {
   if (userId === actorId) return null;
-  return await repo.createNotification(userId, actorId, type, targetType, targetId);
+  return await repo.createNotification(userId, actorId, type, targetType, targetId, commentId);
 }
 
 async function removeNotification(userId, actorId, type, targetType, targetId) {

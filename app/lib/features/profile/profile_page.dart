@@ -21,7 +21,7 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
+class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin {
   late TabController _tabController;
   Map<String, dynamic>? _profileData;
   bool _isLoading = true;
@@ -36,7 +36,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final length = widget.isCurrentUser ? 3 : 2;
+    _tabController = TabController(length: length, vsync: this);
     _fetchProfile();
   }
 
@@ -62,6 +63,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           _resolvedUserId = await AuthService.getUserId();
         }
         setState(() {
+          // Check if we need to update TabController length
+          final expectedLength = _effectiveIsSelf ? 3 : 2;
+          if (_tabController.length != expectedLength) {
+            _tabController.dispose();
+            _tabController = TabController(length: expectedLength, vsync: this);
+          }
+
           _profileData = data;
           _isFollowing = data['is_following'] == true;
           _followerCount = int.tryParse(data['follower_count']?.toString() ?? '0') ?? 0;
@@ -101,7 +109,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           _followerCount = prevCount;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal ${wasFollowing ? 'unfollow' : 'follow'}: $e')),
+          SnackBar(content: Text('Gagal ${wasFollowing ? 'berhenti mengikuti' : 'mengikuti'}: $e')),
         );
       }
     }
@@ -110,7 +118,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget _buildStatColumn(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text)),
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
@@ -118,11 +126,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   }
 
   Widget _buildTasteChip(Map<String, dynamic>? taste) {
-    if (taste == null || taste['tag'] == 'Belum ada taste tag') {
-      return Chip(
-        label: const Text('🌱 Belum ada taste tag'),
+    if (taste == null || taste['tag'] == 'Belum ada taste tag' || taste['tag'] == 'Belum ada tag selera') {
+      return const Chip(
+        label: Text('🌱 Belum ada tag selera'),
         backgroundColor: AppColors.accent,
-        labelStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+        labelStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
         side: BorderSide.none,
       );
     }
@@ -160,13 +168,31 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Keluar'),
-                            content: const Text('Yakin ingin keluar?'),
+                            actionsAlignment: MainAxisAlignment.center,
+                            content: const Text(
+                              'Yakin ingin keluar?', 
+                              style: TextStyle(
+                                fontSize: 16, 
+                                fontWeight: FontWeight.w600, 
+                                color: Colors.black87,
+                              ),
+                            ),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-                              TextButton(
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(context, false), 
+                                child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.bold))
+                              ),
+                              OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD32F2F),
+                                  side: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
+                                ),
                                 onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Keluar', style: TextStyle(color: Colors.redAccent)),
+                                child: const Text('Keluar', style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ],
                           ),
@@ -232,7 +258,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(user['username'] ?? 'Profile', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,
@@ -250,118 +276,123 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Header Info
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppColors.accent,
-                          backgroundImage: user['avatar_url'] != null ? NetworkImage(user['avatar_url']) : null,
-                          child: user['avatar_url'] == null
-                              ? Text((user['full_name'] ?? 'U')[0].toUpperCase(), style: const TextStyle(fontSize: 24, color: AppColors.primary, fontWeight: FontWeight.bold))
-                              : null,
+                    // Avatar with badge
+                    GestureDetector(
+                      onTap: _effectiveIsSelf ? () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EditProfilePage(user: user)),
+                        );
+                        if (result == true) _fetchProfile();
+                      } : null,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: AppColors.accent,
+                            backgroundImage: user['avatar_url'] != null ? NetworkImage(user['avatar_url']) : null,
+                            child: user['avatar_url'] == null
+                                ? Text((user['full_name'] ?? 'U')[0].toUpperCase(), style: const TextStyle(fontSize: 24, color: AppColors.primary, fontWeight: FontWeight.bold))
+                                : null,
+                          ),
+                          if (_effectiveIsSelf)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Name & Username
+                    Text(
+                      user['full_name'] ?? 'User',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${user['username'] ?? ''}',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Bio
+                    if (user['bio'] != null && user['bio'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          user['bio'] ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, color: AppColors.text),
+                          textAlign: TextAlign.center,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Pengikut / Mengikuti
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => FollowersFollowingPage(
+                                userId: effectiveUserId,
+                                initialTab: 0,
+                                username: user['username'] ?? '',
+                              ),
+                            )).then((_) => _fetchProfile());
+                          },
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                user['full_name'] ?? 'User',
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
-                              ),
+                              Text('$_followerCount', style: const TextStyle(fontSize: 18, color: AppColors.primary, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(context, MaterialPageRoute(
-                                        builder: (_) => FollowersFollowingPage(
-                                          userId: effectiveUserId,
-                                          initialTab: 0,
-                                          username: user['username'] ?? '',
-                                        ),
-                                      )).then((_) => _fetchProfile());
-                                    },
-                                    child: Text(
-                                      '$_followerCount Followers',
-                                      style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(context, MaterialPageRoute(
-                                        builder: (_) => FollowersFollowingPage(
-                                          userId: effectiveUserId,
-                                          initialTab: 1,
-                                          username: user['username'] ?? '',
-                                        ),
-                                      )).then((_) => _fetchProfile());
-                                    },
-                                    child: Text(
-                                      '$followingCount Following',
-                                      style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
+                              const Text('Pengikut', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        Container(width: 1, height: 24, color: Colors.grey.shade300),
+                        const SizedBox(width: 24),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => FollowersFollowingPage(
+                                userId: effectiveUserId,
+                                initialTab: 1,
+                                username: user['username'] ?? '',
                               ),
+                            )).then((_) => _fetchProfile());
+                          },
+                          child: Column(
+                            children: [
+                              Text('$followingCount', style: const TextStyle(fontSize: 18, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              const Text('Mengikuti', style: TextStyle(fontSize: 12, color: Colors.grey)),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (user['bio'] != null && user['bio'].toString().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(user['bio'] ?? '', style: const TextStyle(fontSize: 14, color: AppColors.text)),
-                      ),
+                    const SizedBox(height: 24),
 
-                    if (_effectiveIsSelf)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => EditProfilePage(user: user)),
-                                );
-                                if (result == true) _fetchProfile();
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.text,
-                                side: const BorderSide(color: Colors.grey),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              child: const Text('Edit Profil'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const WatchlistPage()),
-                                );
-                              },
-                              icon: const Icon(Icons.bookmark_border, size: 18),
-                              label: const Text('Ingin Dikunjungi'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.text,
-                                side: const BorderSide(color: Colors.grey),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
+                    // Follow Button for others
+                    if (!_effectiveIsSelf) ...[
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -372,29 +403,42 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                             side: _isFollowing ? const BorderSide(color: Colors.grey) : null,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: Text(_isFollowing ? 'Following' : 'Follow'),
+                          child: Text(_isFollowing ? 'Mengikuti' : 'Ikuti'),
                         ),
                       ),
+                      const SizedBox(height: 24),
+                    ],
 
-                    const SizedBox(height: 24),
-
-                    // Stats Bar
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStatColumn('Visits', '${stats['total_visits'] ?? 0}'),
-                        _buildStatColumn('Cafes', '${stats['unique_cafes'] ?? 0}'),
-                        _buildStatColumn('Lists', '${stats['total_lists'] ?? 0}'),
-                        _buildStatColumn('Rating', avgRating),
-                      ],
+                    // Stats Bar (Pink panel)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildStatColumn('Kunjungan', '${stats['total_visits'] ?? 0}'),
+                          _buildStatColumn('Kafe', '${stats['unique_cafes'] ?? 0}'),
+                          _buildStatColumn('Daftar', '${stats['total_lists'] ?? 0}'),
+                          _buildStatColumn('Rating', avgRating),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 24),
 
-                    // My Taste
-                    Text(_effectiveIsSelf ? 'My Taste' : 'Taste', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
+                    // Seleraku
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Seleraku', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
+                    ),
                     const SizedBox(height: 8),
-                    _buildTasteChip(taste),
-                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _buildTasteChip(taste),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -407,9 +451,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   labelColor: AppColors.primary,
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: AppColors.primary,
-                  tabs: const [
-                    Tab(text: 'Diary'),
-                    Tab(text: 'Lists'),
+                  tabs: [
+                    const Tab(text: 'Diari'),
+                    const Tab(text: 'Daftar'),
+                    if (_effectiveIsSelf) const Tab(text: 'Ingin Dikunjungi'),
                   ],
                 ),
               ),
@@ -428,6 +473,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             _effectiveIsSelf
                 ? _ProfileListsTab(isCurrentUser: true)
                 : _ProfileListsTab(isCurrentUser: false, userId: effectiveUserId, isFollowing: _isFollowing, isPrivate: user['is_private'] == true),
+            
+            // Watchlist Tab
+            if (_effectiveIsSelf) const WatchlistPage(),
           ],
         ),
       ),
@@ -487,6 +535,28 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
     }
   }
 
+  String _formatRelativeTime(String dateStr) {
+    try {
+      final dt = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      
+      if (diff.inDays > 1) {
+        return '${diff.inDays} hari lalu';
+      } else if (diff.inDays == 1) {
+        return 'Kemarin';
+      } else if (diff.inHours > 0) {
+        return '${diff.inHours} jam lalu';
+      } else if (diff.inMinutes > 0) {
+        return '${diff.inMinutes} menit lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -498,7 +568,7 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
           children: [
             const Icon(Icons.lock, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text('🔒 Akun ini privat — follow buat lihat aktivitasnya', 
+            const Text('🔒 Akun ini privat — ikuti buat lihat aktivitasnya', 
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
             const SizedBox(height: 16),
@@ -506,10 +576,10 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
               onPressed: () {
                 // Let the user use the header button to follow, or we could trigger it here.
                 // We'll just prompt them to tap the header follow button if they tap this.
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Silakan tekan tombol Follow di bagian atas profil')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Silakan tekan tombol Ikuti di bagian atas profil')));
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Follow', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Ikuti', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -522,6 +592,8 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
       itemCount: _visits.length,
       itemBuilder: (_, i) {
         final v = _visits[i];
+        final rating = v['rating'] != null ? double.tryParse(v['rating'].toString()) ?? 0.0 : 0.0;
+        
         return Card(
           color: AppColors.card,
           margin: const EdgeInsets.only(bottom: 12),
@@ -530,6 +602,7 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -545,13 +618,59 @@ class _ProfileDiaryTabState extends State<_ProfileDiaryTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(v['cafe_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.text)),
-                      if (v['rating'] != null)
-                        Row(children: [
-                          const Icon(Icons.star, color: Colors.orange, size: 14),
-                          const SizedBox(width: 4),
-                          Text(v['rating'].toString(), style: const TextStyle(fontSize: 13, color: AppColors.text)),
-                        ]),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              v['cafe_name'] ?? 'Unknown Cafe',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text),
+                            ),
+                          ),
+                          if (rating > 0)
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.orange, size: 14),
+                                const SizedBox(width: 4),
+                                Text(rating.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.text)),
+                              ],
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      Text(
+                        _formatRelativeTime(v['created_at'] ?? v['visit_date'] ?? ''),
+                        style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                      
+                      if (v['review'] != null && v['review'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          v['review'],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.text, fontSize: 13),
+                        ),
+                      ],
+                      
+                      if (v['favorite_drink'] != null && v['favorite_drink'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            v['favorite_drink'],
+                            style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -631,23 +750,23 @@ class _ProfileListsTabState extends State<_ProfileListsTab> {
           children: [
             const Icon(Icons.lock, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text('🔒 Akun ini privat — follow buat lihat aktivitasnya', 
+            const Text('🔒 Akun ini privat — ikuti buat lihat aktivitasnya', 
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Silakan tekan tombol Follow di bagian atas profil')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Silakan tekan tombol Ikuti di bagian atas profil')));
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Follow', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Ikuti', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
       );
     }
     if (_lists.isEmpty) {
-      return const Center(child: Text('Belum ada list.', style: TextStyle(color: Colors.grey)));
+      return const Center(child: Text('Belum ada daftar.', style: TextStyle(color: Colors.grey)));
     }
 
     return RefreshIndicator(

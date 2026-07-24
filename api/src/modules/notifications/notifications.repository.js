@@ -1,14 +1,14 @@
 // src/modules/notifications/notifications.repository.js
 const pool = require('../../config/db');
 
-async function createNotification(userId, actorId, type, targetType, targetId) {
+async function createNotification(userId, actorId, type, targetType, targetId, commentId = null) {
   if (userId === actorId) return null; // Guard against self-action at DB layer
   
   const result = await pool.query(
-    `INSERT INTO notifications (user_id, actor_id, type, target_type, target_id)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO notifications (user_id, actor_id, type, target_type, target_id, comment_id)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [userId, actorId, type, targetType, targetId]
+    [userId, actorId, type, targetType, targetId, commentId]
   );
   return result.rows[0];
 }

@@ -29,12 +29,6 @@ async function findCafes({ search, categories, areas, city, min_rating, price_ra
     paramIndex++;
   }
 
-  if (city) {
-    query += ` AND city ILIKE $${paramIndex}`;
-    params.push(`%${city}%`);
-    paramIndex++;
-  }
-
   if (min_rating) {
     query += ` AND avg_rating >= $${paramIndex}`;
     params.push(min_rating);
@@ -56,12 +50,10 @@ async function findCafes({ search, categories, areas, city, min_rating, price_ra
 
 async function getFilters() {
   const areasQuery = await pool.query('SELECT DISTINCT area FROM cafes WHERE area IS NOT NULL ORDER BY area ASC');
-  const citiesQuery = await pool.query('SELECT DISTINCT city FROM cafes WHERE city IS NOT NULL ORDER BY city ASC');
   
   return {
     categories: ['Kopi', 'Non-Kopi', 'Dessert', 'Roti', 'Kue', 'Makanan Berat', 'Brunch', 'Lainnya'],
-    areas: areasQuery.rows.map(r => r.area),
-    cities: citiesQuery.rows.map(r => r.city)
+    areas: areasQuery.rows.map(r => r.area)
   };
 }
 

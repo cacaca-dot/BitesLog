@@ -10,14 +10,18 @@ class ThreadedCommentsSection extends StatefulWidget {
   final String targetType;
   final String targetId;
   final String? currentUserId;
+  final String? contentOwnerId; // Owner of the visit or list (for moderation)
+  final String? focusCommentId;
   final Function(int) onCountChanged;
-  final VoidCallback? onCommentsChanged; // For setting hasChanged flag in parent
+  final VoidCallback? onCommentsChanged;
 
   const ThreadedCommentsSection({
     super.key,
     required this.targetType,
     required this.targetId,
     this.currentUserId,
+    this.contentOwnerId,
+    this.focusCommentId,
     required this.onCountChanged,
     this.onCommentsChanged,
   });
@@ -42,6 +46,9 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
   int _refetchCounter = 0;
   DateTime? _lastFetchTime;
   bool _isSubscribed = false;
+
+  final Map<String, GlobalKey> _commentKeys = {};
+  String? _highlightedCommentId;
 
   @override
   void initState() {
@@ -85,6 +92,9 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
     super.dispose();
   }
 
+  // B9: Only count top-level comments, not replies
+  int get _topLevelCount => _comments.where((c) => c['parent_comment_id'] == null).length;
+
   Future<void> _fetchComments() async {
     setState(() => _isLoading = true);
     try {
@@ -94,12 +104,62 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
           _comments = comments;
           _isLoading = false;
         });
-        widget.onCountChanged(_comments.length);
+        widget.onCountChanged(_topLevelCount);
+        
+        if (widget.focusCommentId != null) {
+          _handleFocusComment(widget.focusCommentId!);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _handleFocusComment(String commentId) {
+    bool found = false;
+    for (var c in _comments) {
+      if (c['id'].toString() == commentId) {
+        found = true;
+        break;
+      }
+      if (c['replies'] != null) {
+        for (var r in c['replies']) {
+          if (r['id'].toString() == commentId) {
+            found = true;
+            _expandedThreads.add(c['id'].toString());
+            break;
+          }
+        }
+      }
+      if (found) break;
+    }
+
+    if (found) {
+      setState(() {
+        _highlightedCommentId = commentId;
+      });
+      
+      Future.delayed(const Duration(milliseconds: 300), () {
+        final key = _commentKeys[commentId];
+        if (key != null && key.currentContext != null) {
+          Scrollable.ensureVisible(
+            key.currentContext!,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+            alignment: 0.5,
+          );
+        }
+        
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _highlightedCommentId = null;
+            });
+          }
+        });
+      });
     }
   }
 
@@ -118,7 +178,7 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
         setState(() {
           _comments = comments;
         });
-        widget.onCountChanged(_comments.length);
+        widget.onCountChanged(_topLevelCount);
       }
     } catch (e) {
       // Ignore silent refresh error
@@ -161,7 +221,7 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
       final comments = await ApiService.getComments(widget.targetType, widget.targetId);
       if (mounted) {
         setState(() => _comments = comments);
-        widget.onCountChanged(_comments.length);
+        widget.onCountChanged(_topLevelCount);
       }
     } catch (e) {
       if (mounted) {
@@ -198,7 +258,7 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
       final comments = await ApiService.getComments(widget.targetType, widget.targetId);
       if (mounted) {
         setState(() => _comments = comments);
-        widget.onCountChanged(_comments.length);
+        widget.onCountChanged(_topLevelCount);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -228,8 +288,15 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
   }
 
   Widget _buildCommentItem(Map<String, dynamic> c, bool isReply, bool isMyComment) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 12, left: isReply ? 40 : 0),
+    final commentId = c['id'].toString();
+    _commentKeys[commentId] ??= GlobalKey();
+    
+    final bool isHighlighted = _highlightedCommentId == commentId;
+
+    return Container(
+      key: _commentKeys[commentId],
+      color: isHighlighted ? AppColors.accent.withOpacity(0.5) : Colors.transparent,
+      padding: EdgeInsets.only(bottom: 12, left: isReply ? 40 : 0, top: isHighlighted ? 8 : 0, right: isHighlighted ? 8 : 0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -286,7 +353,7 @@ class _ThreadedCommentsSectionState extends State<ThreadedCommentsSection> with 
               ],
             ),
           ),
-          if (isMyComment)
+          if (isMyComment || widget.contentOwnerId == widget.currentUserId)
             IconButton(
               icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
               onPressed: () => _deleteComment(c['id'].toString()),

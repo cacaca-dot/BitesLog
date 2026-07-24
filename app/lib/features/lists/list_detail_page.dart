@@ -9,8 +9,9 @@ import '../../core/widgets/threaded_comments_section.dart';
 
 class ListDetailPage extends StatefulWidget {
   final String listId;
+  final String? focusCommentId;
 
-  const ListDetailPage({super.key, required this.listId});
+  const ListDetailPage({super.key, required this.listId, this.focusCommentId});
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -26,6 +27,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   bool _isSaved = false;
   int _likeCount = 0;
   int _commentCount = 0;
+  bool _hasChanged = false;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -70,6 +72,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     setState(() {
       _isLiked = !_isLiked;
       _likeCount += _isLiked ? 1 : -1;
+      _hasChanged = true;
     });
 
     try {
@@ -100,6 +103,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     // Optimistic UI update
     setState(() {
       _isSaved = !_isSaved;
+      _hasChanged = true;
     });
 
     try {
@@ -166,10 +170,19 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final items = list['items'] as List<dynamic>? ?? [];
     final author = list['author'] ?? {};
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(list['title'] ?? 'List Detail'),
-        actions: [
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _hasChanged);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, _hasChanged),
+          ),
+          title: Text(list['title'] ?? 'List Detail'),
+          actions: [
           if (!isOwner)
             IconButton(
               icon: Icon(_isSaved ? Icons.library_add_check : Icons.library_add, color: AppColors.primary),
@@ -193,6 +206,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 );
 
                 if (result == true) {
+                  _hasChanged = true;
                   _fetchDetail();
                 }
               },
@@ -390,8 +404,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   targetType: 'list',
                   targetId: widget.listId,
                   currentUserId: _currentUserId,
+                  contentOwnerId: _listData!['author']?['id']?.toString(),
+                  focusCommentId: widget.focusCommentId,
                   onCountChanged: (count) {
                     if (mounted) setState(() => _commentCount = count);
+                  },
+                  onCommentsChanged: () {
+                    _hasChanged = true;
                   },
                 ),
                 const SizedBox(height: 32),
@@ -399,6 +418,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

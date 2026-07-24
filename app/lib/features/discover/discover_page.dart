@@ -21,14 +21,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   // Filter state
   List<String> _availableCategories = [];
-  List<String> _availableCities = [];
   List<String> _availableAreas = [];
   
   List<String> _selectedCategories = [];
   List<String> _selectedAreas = [];
   String? _selectedMinRating;
   List<String> _selectedPrices = [];
-  String? _selectedCity;
 
   @override
   void initState() {
@@ -43,7 +41,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
       if (mounted) {
         setState(() {
           _availableCategories = List<String>.from(filters['categories'] ?? []);
-          _availableCities = List<String>.from(filters['cities'] ?? []);
           _availableAreas = List<String>.from(filters['areas'] ?? []);
         });
       }
@@ -62,7 +59,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
       final data = await ApiService.getCafes(
         categories: _selectedCategories.isNotEmpty ? _selectedCategories : null,
         areas: _selectedAreas.isNotEmpty ? _selectedAreas : null,
-        city: _selectedCity,
         minRating: _selectedMinRating != null ? double.tryParse(_selectedMinRating!) : null,
         priceRange: _selectedPrices.isNotEmpty ? _selectedPrices.join(',') : null,
       );
@@ -87,8 +83,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
     }
   }
 
-  bool get _isFilterActive => _selectedCategories.isNotEmpty || _selectedAreas.isNotEmpty || _selectedMinRating != null || _selectedPrices.isNotEmpty || _selectedCity != null;
-  int get _activeFilterCount => _selectedCategories.length + _selectedAreas.length + (_selectedMinRating != null ? 1 : 0) + _selectedPrices.length + (_selectedCity != null ? 1 : 0);
+  bool get _isFilterActive => _selectedCategories.isNotEmpty || _selectedAreas.isNotEmpty || _selectedMinRating != null || _selectedPrices.isNotEmpty;
+  int get _activeFilterCount => _selectedCategories.length + _selectedAreas.length + (_selectedMinRating != null ? 1 : 0) + _selectedPrices.length;
 
   void _resetFilters() {
     setState(() {
@@ -96,7 +92,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
       _selectedAreas.clear();
       _selectedMinRating = null;
       _selectedPrices.clear();
-      _selectedCity = null;
     });
     _fetchData();
   }
@@ -185,24 +180,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               );
                             }).toList(),
                           ),
-                          const SizedBox(height: 20),
-                          const Text('Kota', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: _selectedCity,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            hint: const Text('Semua Kota'),
-                            items: [
-                              const DropdownMenuItem(value: null, child: Text('Semua Kota')),
-                              ..._availableCities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
-                            ],
-                            onChanged: (val) {
-                              setModalState(() => _selectedCity = val);
-                            },
-                          ),
+
                           const SizedBox(height: 20),
                           const Text('Area / Kecamatan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 8),
@@ -237,7 +215,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                 _selectedAreas.clear();
                                 _selectedMinRating = null;
                                 _selectedPrices.clear();
-                                _selectedCity = null;
                               });
                             },
                             child: const Text('Reset'),
@@ -311,16 +288,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
       ));
     }
 
-    if (_selectedCity != null) {
-      chips.add(InputChip(
-        label: Text(_selectedCity!, style: const TextStyle(fontSize: 12)),
-        onDeleted: () {
-          setState(() => _selectedCity = null);
-          _fetchData();
-        },
-      ));
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SingleChildScrollView(
@@ -338,7 +305,20 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('📍 Bandung', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,

@@ -63,7 +63,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     String actionText = '';
     if (type == 'follow') actionText = 'mulai mengikutimu';
     else if (type == 'like') {
-      final target = notif['target_type'] == 'visit' ? 'review' : 'list';
+      final target = notif['target_type'] == 'review' ? 'review' : 'list';
       actionText = 'nge-like $target kamu';
     }
     else if (type == 'comment') actionText = 'komentar di review kamu';
@@ -84,6 +84,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final type = notif['type'];
     final targetType = notif['target_type'];
     final targetId = notif['target_id'];
+    final commentId = notif['comment_id']?.toString();
     
     try {
       if (type == 'follow') {
@@ -91,22 +92,27 @@ class _NotificationsPageState extends State<NotificationsPage> {
           builder: (_) => ProfilePage(userId: notif['actor_id']?.toString()),
         ));
       } else if (targetId != null) {
-        if (targetType == 'visit') {
+        if (targetType == 'review') {
+          // Verify existence
+          await ApiService.getVisitDetail(targetId.toString());
+          if (!mounted) return;
+          
           Navigator.push(context, MaterialPageRoute(
-            builder: (_) => VisitDetailPage(visitId: targetId.toString()),
+            builder: (_) => VisitDetailPage(visitId: targetId.toString(), focusCommentId: commentId),
           ));
         } else if (targetType == 'list') {
-          // Asumsi ListDetailPage tidak melempar error sinkron, 
-          // error fetch 404 akan ditangani di dalam halamannya atau bisa kita catch jika kita fetch sebelum push
+          // Verify existence
+          await ApiService.getListDetail(targetId.toString());
+          if (!mounted) return;
+          
           Navigator.push(context, MaterialPageRoute(
-            builder: (_) => Scaffold(appBar: AppBar(title: const Text('List Detail')), body: const Center(child: Text('Coming Soon'))),
-            // builder: (_) => ListDetailPage(listId: targetId.toString()), // Ganti nanti kalau list detail sudah ada
+            builder: (_) => ListDetailPage(listId: targetId.toString(), focusCommentId: commentId),
           ));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konten sudah dihapus')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konten sudah tidak tersedia')));
       }
     }
   }

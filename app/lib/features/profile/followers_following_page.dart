@@ -57,8 +57,8 @@ class _FollowersFollowingPageState extends State<FollowersFollowingPage> with Si
           unselectedLabelColor: Colors.grey,
           indicatorColor: AppColors.primary,
           tabs: const [
-            Tab(text: 'Followers'),
-            Tab(text: 'Following'),
+            Tab(text: 'Pengikut'),
+            Tab(text: 'Mengikuti'),
           ],
         ),
       ),
@@ -183,7 +183,7 @@ class _UserListTabState extends State<_UserListTab> {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: Text(isFollowing ? 'Following' : 'Follow', style: const TextStyle(fontSize: 13)),
+                      child: Text(isFollowing ? 'Mengikuti' : 'Ikuti', style: const TextStyle(fontSize: 13)),
                     ),
                   ),
             onTap: () {

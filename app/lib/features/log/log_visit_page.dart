@@ -167,16 +167,25 @@ class _LogVisitPageState extends State<LogVisitPage> {
     final shouldPop = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buang perubahan?'),
-        content: const Text('Kunjungan ini belum disimpan.'),
+        title: const Text('Buang perubahan?', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
+        content: const Text('Kunjungan ini belum disimpan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Lanjut Isi'),
+            child: const Text('Lanjut Isi', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          TextButton(
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFD32F2F),
+              side: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Buang', style: TextStyle(color: Colors.red)),
+            child: const Text('Buang', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

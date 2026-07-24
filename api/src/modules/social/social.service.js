@@ -1,6 +1,7 @@
 // src/modules/social/social.service.js
 const repo = require('./social.repository');
 const notifications = require('../notifications/notifications.service');
+const { canViewContent } = require('../../utils/privacy.helper');
 
 // ============================================
 // FOLLOW
@@ -66,7 +67,7 @@ async function toggleLike(userId, targetType, targetId) {
     await repo.deleteLike(userId, targetType, targetId);
     
     // Hapus notif
-    const notifTargetType = targetType === 'review' ? 'visit' : 'list';
+    const notifTargetType = targetType === 'review' ? 'review' : 'list';
     const ownerId = targetType === 'review' 
       ? await notifications.getVisitOwner(targetId)
       : await notifications.getListOwner(targetId);
@@ -81,7 +82,7 @@ async function toggleLike(userId, targetType, targetId) {
     await repo.createLike(userId, targetType, targetId);
     
     // Tambah notif
-    const notifTargetType = targetType === 'review' ? 'visit' : 'list';
+    const notifTargetType = targetType === 'review' ? 'review' : 'list';
     const ownerId = targetType === 'review' 
       ? await notifications.getVisitOwner(targetId)
       : await notifications.getListOwner(targetId);
@@ -128,25 +129,37 @@ async function addComment(userId, targetType, targetId, commentText, parentComme
     throw new Error('Target type harus "review" atau "list"');
   }
 
+  // B1: Privacy gate — resolve content owner lalu cek izin
+  const contentOwnerId = finalTargetType === 'review'
+    ? await notifications.getVisitOwner(finalTargetId)
+    : await notifications.getListOwner(finalTargetId);
+
+  if (!contentOwnerId) {
+    throw new Error('Konten tidak ditemukan');
+  }
+
+  const allowed = await canViewContent(userId, contentOwnerId);
+  if (!allowed) {
+    const err = new Error('Tidak diizinkan: konten ini milik akun privat');
+    err.status = 403;
+    throw err;
+  }
+
   const comment = await repo.createComment(userId, finalTargetType, finalTargetId, commentText.trim(), finalParentId);
   
   // Handle notifications
-  const notifTargetType = finalTargetType === 'review' ? 'visit' : 'list';
+  const notifTargetType = finalTargetType === 'review' ? 'review' : 'list';
   
   if (parentCommentId) { // Ini adalah reply asli (berdasarkan input user, terlepas dari finalParentId yang di-flatten)
     // Notif ke pemilik komentar yang DIBALAS
     const parentOwnerId = await notifications.getCommentOwner(parentCommentId);
     if (parentOwnerId) {
-      await notifications.addNotification(parentOwnerId, userId, 'reply', notifTargetType, finalTargetId);
+      await notifications.addNotification(parentOwnerId, userId, 'reply', notifTargetType, finalTargetId, comment.id);
     }
   } else {
     // Notif ke pemilik konten (visit/list)
-    const contentOwnerId = finalTargetType === 'review'
-      ? await notifications.getVisitOwner(finalTargetId)
-      : await notifications.getListOwner(finalTargetId);
-      
     if (contentOwnerId) {
-      await notifications.addNotification(contentOwnerId, userId, 'comment', notifTargetType, finalTargetId);
+      await notifications.addNotification(contentOwnerId, userId, 'comment', notifTargetType, finalTargetId, comment.id);
     }
   }
   
@@ -154,21 +167,61 @@ async function addComment(userId, targetType, targetId, commentText, parentComme
 }
 
 async function removeComment(commentId, userId) {
-  const deleted = await repo.deleteComment(commentId, userId);
-  if (!deleted) {
-    throw new Error('Komentar tidak ditemukan atau bukan milik Anda');
+  // Ambil komentar dulu untuk cek kepemilikan dan target content
+  const comment = await repo.getCommentById(commentId);
+  if (!comment) {
+    throw new Error('Komentar tidak ditemukan');
   }
-  return deleted;
+
+  // Cek apakah user adalah pemilik komentar
+  if (comment.user_id === userId) {
+    const deleted = await repo.deleteComment(commentId, userId);
+    if (!deleted) throw new Error('Gagal menghapus komentar');
+    return deleted;
+  }
+
+  // B2: Cek apakah user adalah pemilik konten (moderasi)
+  const contentOwnerId = comment.target_type === 'review'
+    ? await notifications.getVisitOwner(comment.target_id)
+    : await notifications.getListOwner(comment.target_id);
+
+  if (contentOwnerId && contentOwnerId === userId) {
+    const deleted = await repo.deleteCommentById(commentId);
+    if (!deleted) throw new Error('Gagal menghapus komentar');
+    return deleted;
+  }
+
+  // Bukan pemilik komentar, bukan pemilik konten → tolak
+  const err = new Error('Tidak diizinkan menghapus komentar ini');
+  err.status = 403;
+  throw err;
 }
 
 // ============================================
 // SOCIAL STATS
 // ============================================
 
-async function getComments(targetType, targetId, limit = 20) {
+async function getComments(targetType, targetId, userId, limit = 20) {
   if (!['review', 'list'].includes(targetType)) {
     throw new Error('Target type harus "review" atau "list"');
   }
+
+  // B1: Privacy gate
+  const contentOwnerId = targetType === 'review'
+    ? await notifications.getVisitOwner(targetId)
+    : await notifications.getListOwner(targetId);
+
+  if (!contentOwnerId) {
+    throw new Error('Konten tidak ditemukan');
+  }
+
+  const allowed = await canViewContent(userId, contentOwnerId);
+  if (!allowed) {
+    const err = new Error('Tidak diizinkan: konten ini milik akun privat');
+    err.status = 403;
+    throw err;
+  }
+
   return await repo.getComments(targetType, targetId, limit);
 }
 

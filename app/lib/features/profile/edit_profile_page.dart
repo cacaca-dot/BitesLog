@@ -105,7 +105,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const Text('Edit Profil'),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,
@@ -152,7 +152,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   const SizedBox(height: 32),
 
                   // Full Name
-                  const Text('Full Name', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Nama Lengkap', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _nameController,
@@ -178,7 +178,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text('Username cannot be changed.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text('Username tidak dapat diubah.', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   const SizedBox(height: 16),
 
                   // Bio
@@ -186,7 +186,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _bioController,
-                    maxLines: 3,
+                    maxLines: 1,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
@@ -205,7 +205,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ),
                     child: SwitchListTile(
                       title: const Text('Akun Privat', style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Kalau aktif, cuma follower yang bisa lihat aktivitasmu.'),
+                      subtitle: const Text('Kalau aktif, cuma pengikut yang bisa lihat aktivitasmu.'),
                       value: _isPrivate,
                       activeColor: AppColors.primary,
                       onChanged: (val) => setState(() => _isPrivate = val),

@@ -121,8 +121,9 @@ async function addComment(req, res) {
       message: 'Komentar berhasil ditambahkan'
     });
   } catch (err) {
-    res.status(400).json({
-      error: { code: 'COMMENT_ERROR', message: err.message }
+    const status = err.status === 403 ? 403 : 400;
+    res.status(status).json({
+      error: { code: status === 403 ? 'FORBIDDEN' : 'COMMENT_ERROR', message: err.message }
     });
   }
 }
@@ -137,14 +138,16 @@ async function deleteComment(req, res) {
       message: 'Komentar berhasil dihapus'
     });
   } catch (err) {
-    res.status(400).json({
-      error: { code: 'DELETE_COMMENT_ERROR', message: err.message }
+    const status = err.status === 403 ? 403 : 400;
+    res.status(status).json({
+      error: { code: status === 403 ? 'FORBIDDEN' : 'DELETE_COMMENT_ERROR', message: err.message }
     });
   }
 }
 
 async function getComments(req, res) {
   try {
+    const userId = req.user.id;
     const { target_type, target_id } = req.query;
     if (!target_type || !target_id) {
       return res.status(400).json({
@@ -152,14 +155,15 @@ async function getComments(req, res) {
       });
     }
 
-    const comments = await socialService.getComments(target_type, target_id);
+    const comments = await socialService.getComments(target_type, target_id, userId);
     res.json({
       data: comments,
       count: comments.length
     });
   } catch (err) {
-    res.status(400).json({
-      error: { code: 'GET_COMMENTS_ERROR', message: err.message }
+    const status = err.status === 403 ? 403 : 400;
+    res.status(status).json({
+      error: { code: status === 403 ? 'FORBIDDEN' : 'GET_COMMENTS_ERROR', message: err.message }
     });
   }
 }

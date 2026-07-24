@@ -196,24 +196,134 @@ class ListCard extends StatelessWidget {
 
   const ListCard({super.key, required this.list, required this.onRefresh});
 
-  Widget _buildCollageSlot(String emoji, double fontSize) {
+  Widget _buildFallbackTile() {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.accent, // fallback if gradient not used
-        gradient: LinearGradient(
-          colors: [AppColors.accent, AppColors.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Text(emoji, style: TextStyle(fontSize: fontSize)),
+      color: AppColors.primary.withOpacity(0.8),
+      child: const Center(
+        child: Icon(Icons.coffee, color: Colors.white, size: 24),
       ),
     );
   }
 
+  Widget _buildImageTile(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildFallbackTile();
+    }
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: AppColors.accent.withOpacity(0.3),
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _buildFallbackTile(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      color: AppColors.accent.withOpacity(0.1),
+      child: const Center(
+        child: Icon(Icons.bookmark_outline, size: 48, color: Colors.grey),
+      ),
+    );
+  }
+
+  Widget _buildMosaic(List<dynamic> covers, int cafeCount) {
+    if (cafeCount == 0) return _buildEmptyState();
+
+    final int tileCount = cafeCount > 4 ? 4 : cafeCount;
+    
+    String? getCover(int index) {
+      if (index < covers.length) return covers[index]?.toString();
+      return null;
+    }
+
+    if (tileCount == 1) {
+      return _buildImageTile(getCover(0));
+    } else if (tileCount == 2) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _buildImageTile(getCover(0))),
+          const SizedBox(width: 2),
+          Expanded(child: _buildImageTile(getCover(1))),
+        ],
+      );
+    } else if (tileCount == 3) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 2, child: _buildImageTile(getCover(0))),
+          const SizedBox(width: 2),
+          Expanded(
+            flex: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _buildImageTile(getCover(1))),
+                const SizedBox(height: 2),
+                Expanded(child: _buildImageTile(getCover(2))),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else { // 4+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _buildImageTile(getCover(0))),
+                const SizedBox(width: 2),
+                Expanded(child: _buildImageTile(getCover(1))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _buildImageTile(getCover(2))),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildImageTile(getCover(3)),
+                      if (cafeCount > 4)
+                        Container(
+                          color: Colors.black45,
+                          child: Center(
+                            child: Text(
+                              '+${cafeCount - 4}',
+                              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final int cafeCount = int.tryParse(list['cafe_count']?.toString() ?? '0') ?? 0;
+    final List<dynamic> covers = list['covers'] ?? [];
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -225,7 +335,7 @@ class ListCard extends StatelessWidget {
         onTap: () async {
           final result = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => ListDetailPage(listId: list['id'])),
+            MaterialPageRoute(builder: (_) => ListDetailPage(listId: list['id'].toString())),
           );
           if (result == true) onRefresh();
         },
@@ -235,26 +345,7 @@ class ListCard extends StatelessWidget {
             // COVER COLLAGE
             SizedBox(
               height: 140,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildCollageSlot('☕', 48),
-                  ),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _buildCollageSlot('🍵', 24)),
-                        const SizedBox(height: 2),
-                        Expanded(child: _buildCollageSlot('🥐', 24)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              child: _buildMosaic(covers, cafeCount),
             ),
             // CONTENT
             Padding(

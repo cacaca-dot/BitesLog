@@ -2,8 +2,8 @@ const cafeService = require('./cafes.service');
 
 async function getCafes(req, res) {
   try {
-    const { search, categories, areas, city, min_rating, price_range } = req.query;
-    const cafes = await cafeService.searchCafes({ search, categories, areas, city, min_rating, price_range });
+    const { search, categories, areas, min_rating, price_range } = req.query;
+    const cafes = await cafeService.searchCafes({ search, categories, areas, min_rating, price_range });
     
     res.json({
       data: cafes,

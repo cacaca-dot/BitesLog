@@ -233,6 +233,15 @@ async function deleteComment(commentId, userId) {
   return result.rows[0];
 }
 
+// For content owner moderation — delete without requiring user_id match
+async function deleteCommentById(commentId) {
+  const result = await pool.query(
+    `DELETE FROM comments WHERE id = $1 RETURNING *`,
+    [commentId]
+  );
+  return result.rows[0];
+}
+
 async function getComments(targetType, targetId, limit = 20) {
   const result = await pool.query(
     `SELECT c.id, c.comment_text, c.created_at, c.parent_comment_id,
@@ -289,6 +298,7 @@ module.exports = {
   createComment,
   getCommentById,
   deleteComment,
+  deleteCommentById,
   getComments,
   getCommentCount,
   // User

@@ -11,7 +11,8 @@ import '../../core/widgets/threaded_comments_section.dart';
 
 class VisitDetailPage extends StatefulWidget {
   final String visitId;
-  const VisitDetailPage({super.key, required this.visitId});
+  final String? focusCommentId;
+  const VisitDetailPage({super.key, required this.visitId, this.focusCommentId});
 
   @override
   State<VisitDetailPage> createState() => _VisitDetailPageState();
@@ -425,6 +426,8 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                             targetType: 'review',
                             targetId: widget.visitId,
                             currentUserId: _currentUserId,
+                            contentOwnerId: _visit!['user_id']?.toString(),
+                            focusCommentId: widget.focusCommentId,
                             onCountChanged: (count) {
                               if (mounted) setState(() => _commentCount = count);
                             },

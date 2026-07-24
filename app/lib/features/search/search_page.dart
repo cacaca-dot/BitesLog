@@ -340,7 +340,7 @@ class _UserSearchTileState extends State<_UserSearchTile> {
           elevation: 0,
         ),
         onPressed: _toggleFollow,
-        child: Text(_isFollowing ? 'Following' : 'Follow'),
+        child: Text(_isFollowing ? 'Mengikuti' : 'Ikuti'),
       ),
       onTap: () {
         final userId = widget.user['id']?.toString();

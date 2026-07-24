@@ -80,6 +80,28 @@ class _DiaryPageState extends State<DiaryPage> {
     }
   }
 
+  String _formatRelativeTime(String dateStr) {
+    try {
+      final dt = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      
+      if (diff.inDays > 1) {
+        return '${diff.inDays} hari lalu';
+      } else if (diff.inDays == 1) {
+        return 'Kemarin';
+      } else if (diff.inHours > 0) {
+        return '${diff.inHours} jam lalu';
+      } else if (diff.inMinutes > 0) {
+        return '${diff.inMinutes} menit lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -174,43 +196,59 @@ class _DiaryPageState extends State<DiaryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      v['cafe_name'] ?? 'Unknown Cafe',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            v['cafe_name'] ?? 'Unknown Cafe',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text),
+                          ),
+                        ),
+                        if (rating > 0)
+                          Row(
+                            children: [
+                              const Icon(Icons.star, color: Colors.orange, size: 14),
+                              const SizedBox(width: 4),
+                              Text(rating.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.text)),
+                            ],
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     
-                    // Rating Row
-                    if (rating > 0)
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.orange, size: 14),
-                          const SizedBox(width: 4),
-                          Text(rating.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.text)),
-                        ],
-                      ),
-                      
-                    const SizedBox(height: 8),
+                    Text(
+                      _formatRelativeTime(v['created_at'] ?? v['visit_date'] ?? ''),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
                     
-                    // Date & Drink
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _formatDay(v['visit_date'] ?? ''),
-                          style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                    if (v['review'] != null && v['review'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        v['review'],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.text, fontSize: 13),
+                      ),
+                    ],
+                    
+                    if (v['favorite_drink'] != null && v['favorite_drink'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        if (v['favorite_drink'] != null && v['favorite_drink'].toString().isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              ' • ${v['favorite_drink']}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: AppColors.primary, fontSize: 12),
-                            ),
-                          ),
-                      ],
-                    )
+                        child: Text(
+                          v['favorite_drink'],
+                          style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

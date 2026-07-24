@@ -37,6 +37,11 @@ async function migrate() {
             ON notifications(user_id, created_at DESC);
         `);
         
+        await pool.query(`
+            ALTER TABLE notifications 
+            ADD COLUMN IF NOT EXISTS comment_id UUID NULL REFERENCES comments(id) ON DELETE CASCADE;
+        `);
+        
         // Buat tabel saved_lists
         await pool.query(`
             CREATE TABLE IF NOT EXISTS saved_lists (

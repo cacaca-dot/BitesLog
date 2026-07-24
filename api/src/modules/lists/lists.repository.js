@@ -4,7 +4,18 @@ async function findMyLists(userId) {
   const query = `
     SELECT l.id, l.title, l.description, l.is_public, l.user_id, l.created_at, l.updated_at,
            COUNT(li.id)::int AS cafe_count,
-           (SELECT COUNT(*)::int FROM likes WHERE target_type='list' AND target_id=l.id) AS like_count
+           (SELECT COUNT(*)::int FROM likes WHERE target_type='list' AND target_id=l.id) AS like_count,
+           COALESCE((
+             SELECT array_agg(c.image_url)
+             FROM (
+               SELECT c2.image_url 
+               FROM list_items li2 
+               JOIN cafes c2 ON li2.cafe_id = c2.id 
+               WHERE li2.list_id = l.id 
+               ORDER BY li2.position ASC 
+               LIMIT 4
+             ) c
+           ), '{}'::text[]) AS covers
     FROM lists l
     LEFT JOIN list_items li ON l.id = li.list_id
     WHERE l.user_id = $1
@@ -12,17 +23,25 @@ async function findMyLists(userId) {
     ORDER BY l.created_at DESC
   `;
   const result = await pool.query(query, [userId]);
-  return result.rows.map(row => ({
-    ...row,
-    covers: []
-  }));
+  return result.rows;
 }
 
 async function findSavedLists(userId) {
   const query = `
     SELECT l.id, l.title, l.description, l.is_public, l.user_id, l.created_at, l.updated_at,
            COUNT(li.id)::int AS cafe_count,
-           (SELECT COUNT(*)::int FROM likes WHERE target_type='list' AND target_id=l.id) AS like_count
+           (SELECT COUNT(*)::int FROM likes WHERE target_type='list' AND target_id=l.id) AS like_count,
+           COALESCE((
+             SELECT array_agg(c.image_url)
+             FROM (
+               SELECT c2.image_url 
+               FROM list_items li2 
+               JOIN cafes c2 ON li2.cafe_id = c2.id 
+               WHERE li2.list_id = l.id 
+               ORDER BY li2.position ASC 
+               LIMIT 4
+             ) c
+           ), '{}'::text[]) AS covers
     FROM lists l
     JOIN saved_lists sl ON sl.list_id = l.id
     LEFT JOIN list_items li ON l.id = li.list_id
@@ -31,10 +50,7 @@ async function findSavedLists(userId) {
     ORDER BY sl.created_at DESC
   `;
   const result = await pool.query(query, [userId]);
-  return result.rows.map(row => ({
-    ...row,
-    covers: []
-  }));
+  return result.rows;
 }
 
 async function findListById(id, requestUserId) {

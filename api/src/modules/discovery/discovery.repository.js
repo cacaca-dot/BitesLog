@@ -38,16 +38,16 @@ async function searchLists(keyword, userId) {
             u.username as owner_username, u.full_name,
             (SELECT COUNT(*) FROM list_items WHERE list_id = l.id) as cafe_count,
             COALESCE((
-              SELECT json_agg(c.image_url)
+              SELECT array_agg(c.image_url)
               FROM (
                 SELECT c2.image_url 
                 FROM list_items li 
                 JOIN cafes c2 ON li.cafe_id = c2.id 
-                WHERE li.list_id = l.id AND c2.image_url IS NOT NULL 
+                WHERE li.list_id = l.id 
                 ORDER BY li.position ASC
                 LIMIT 4
               ) c
-            ), '[]'::json) as covers,
+            ), '{}'::text[]) as covers,
             'list' as type
      FROM lists l
      JOIN users u ON u.id = l.user_id

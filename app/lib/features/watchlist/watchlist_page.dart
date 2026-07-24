@@ -91,10 +91,17 @@ class _WatchlistPageState extends State<WatchlistPage> {
             ? const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32.0),
-                  child: Text(
-                    'Belum ada cafe di Ingin Dikunjungi — tandai cafe yang pengen kamu datangi',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.secondary, fontSize: 16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.push_pin_outlined, size: 48, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'Belum ada cafe di Ingin Dikunjungi — tandai cafe yang pengen kamu datangi',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.secondary, fontSize: 16),
+                      ),
+                    ],
                   ),
                 ),
               )
