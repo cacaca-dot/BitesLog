@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../core/image_picker_util.dart';
+import '../../core/widgets/local_image.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -17,9 +18,8 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _nameController;
+  late TextEditingController _usernameController;
   late TextEditingController _bioController;
-  
-  bool _isPrivate = false;
   String? _currentAvatarUrl;
   
   Uint8List? _webImageBytes;
@@ -30,34 +30,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user['full_name'] ?? '');
+    _usernameController = TextEditingController(text: widget.user['username'] ?? '');
     _bioController = TextEditingController(text: widget.user['bio'] ?? '');
-    _isPrivate = widget.user['is_private'] ?? false;
     _currentAvatarUrl = widget.user['avatar_url'];
   }
 
-  @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _bioController.dispose();
     super.dispose();
   }
+
+  XFile? _imageFile;
 
   Future<void> _pickImage() async {
     try {
       final XFile? image = await ImagePickerUtil.pickImageSource(context);
       if (image != null) {
-        if (kIsWeb) {
-          final bytes = await image.readAsBytes();
-          setState(() {
-            _webImageBytes = bytes;
-          });
-        } else {
-          // Fallback to reading bytes anyway for simplicity
-          final bytes = await image.readAsBytes();
-          setState(() {
-            _webImageBytes = bytes;
-          });
-        }
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _imageFile = image;
+          _webImageBytes = bytes;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -76,18 +71,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isSaving = true);
     
     try {
-      String? avatarUrl = _currentAvatarUrl;
-      if (_webImageBytes != null) {
-        final base64Image = 'data:image/jpeg;base64,${base64Encode(_webImageBytes!)}';
-        avatarUrl = await ApiService.uploadImage(base64Image);
+      final updateData = {
+        'full_name': name,
+        'username': _usernameController.text.trim(),
+        'bio': _bioController.text.trim(),
+      };
+      
+      if (_imageFile != null) {
+        updateData['avatar_url'] = _imageFile!.path;
       }
 
-      await ApiService.updateMyProfile(
-        fullName: name,
-        bio: _bioController.text.trim(),
-        avatarUrl: avatarUrl,
-        isPrivate: _isPrivate,
-      );
+      await ApiService.updateMeProfile(updateData);
 
       if (mounted) {
         Navigator.pop(context, true);
@@ -124,12 +118,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         CircleAvatar(
                           radius: 50,
                           backgroundColor: AppColors.accent,
-                          backgroundImage: _webImageBytes != null 
-                              ? MemoryImage(_webImageBytes!) as ImageProvider
-                              : (_currentAvatarUrl != null ? NetworkImage(_currentAvatarUrl!) : null),
-                          child: (_webImageBytes == null && _currentAvatarUrl == null)
-                              ? const Icon(Icons.person, size: 50, color: AppColors.primary)
-                              : null,
+                          child: _webImageBytes != null
+                              ? ClipOval(child: Image.memory(_webImageBytes!, width: 100, height: 100, fit: BoxFit.cover))
+                              : (_currentAvatarUrl != null
+                                  ? ClipOval(child: LocalImage(_currentAvatarUrl!, width: 100, height: 100, fit: BoxFit.cover))
+                                  : const Icon(Icons.person, size: 50, color: AppColors.primary)),
                         ),
                         Positioned(
                           bottom: 0,
@@ -165,20 +158,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Username (Read only)
+                  // Username
                   const Text('Username', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: TextEditingController(text: widget.user['username'] ?? ''),
-                    enabled: false, // TIDAK BISA DIEDIT
+                    controller: _usernameController,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: Colors.grey[200],
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      hintText: 'johndoe',
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text('Username tidak dapat diubah.', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   const SizedBox(height: 16),
 
                   // Bio
@@ -196,23 +187,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Private Account
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: SwitchListTile(
-                      title: const Text('Akun Privat', style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Kalau aktif, cuma pengikut yang bisa lihat aktivitasmu.'),
-                      value: _isPrivate,
-                      activeColor: AppColors.primary,
-                      onChanged: (val) => setState(() => _isPrivate = val),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+
 
                   // Save Button
                   SizedBox(

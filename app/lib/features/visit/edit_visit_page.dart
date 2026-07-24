@@ -10,6 +10,7 @@ import '../../models/cafe.dart';
 import '../../services/api_service.dart';
 import '../../core/utils.dart';
 import '../../core/image_picker_util.dart';
+import '../../core/widgets/local_image.dart';
 
 class EditVisitPage extends StatefulWidget {
   final Map<String, dynamic> visit;
@@ -183,23 +184,14 @@ class _EditVisitPageState extends State<EditVisitPage> {
       builder: (context) => AlertDialog(
         title: const Text('Buang perubahan?', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
         content: const Text('Perubahan ini belum disimpan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
-        actionsAlignment: MainAxisAlignment.center,
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Lanjut Isi', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Lanjut Isi', style: TextStyle(color: AppColors.secondary)),
           ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFD32F2F),
-              side: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Buang', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Buang', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -225,21 +217,11 @@ class _EditVisitPageState extends State<EditVisitPage> {
     setState(() => _isSaving = true);
     
     try {
-      List<String> photoUrls = _existingPhotos.map((p) => p['url'].toString()).toList();
-      
-      if (kIsWeb) {
-        for (var bytes in _newWebImageBytesList) {
-          final base64Image = 'data:image/jpeg;base64,' + base64Encode(bytes);
-          final url = await ApiService.uploadImage(base64Image);
-          photoUrls.add(url);
-        }
-      } else {
-        for (var file in _newImageFiles) {
-          final bytes = await file.readAsBytes();
-          final base64Image = 'data:image/jpeg;base64,' + base64Encode(bytes);
-          final url = await ApiService.uploadImage(base64Image);
-          photoUrls.add(url);
-        }
+      String? photoPath;
+      if (_newImageFiles.isNotEmpty) {
+        photoPath = _newImageFiles.first.path;
+      } else if (_existingPhotos.isNotEmpty) {
+        photoPath = (_existingPhotos.first['url'] ?? _existingPhotos.first['photo_url'])?.toString();
       }
 
       final priceStr = _priceController.text.replaceAll(RegExp(r'[^0-9]'), '');
@@ -251,7 +233,7 @@ class _EditVisitPageState extends State<EditVisitPage> {
         'favorite_drink': _drinkController.text.trim().isEmpty ? null : _drinkController.text.trim(),
         'price': priceStr.isEmpty ? null : priceStr,
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        'photos': photoUrls,
+        'photo_path': photoPath,
       };
 
       await ApiService.updateVisit(widget.visit['id'].toString(), data);
@@ -406,7 +388,7 @@ class _EditVisitPageState extends State<EditVisitPage> {
                     const SizedBox(height: 24),
                     
                     // Minuman Favorit
-                    const Text('Pesanan Favorit (opsional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const Text('Pesanan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _drinkController,
@@ -435,20 +417,7 @@ class _EditVisitPageState extends State<EditVisitPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Private Notes
-                    const Text('Catatan Pribadi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _notesController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: 'Catatan pribadi (tidak publik)',
-                        filled: true,
-                        fillColor: AppColors.card,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+
 
                     // Image Picker
                     // Image Picker
@@ -479,7 +448,7 @@ class _EditVisitPageState extends State<EditVisitPage> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: isExisting
-                                      ? Image.network(_existingPhotos[index]['url'], fit: BoxFit.cover)
+                                      ? LocalImage(_existingPhotos[index]['url'] ?? _existingPhotos[index]['photo_url'], fit: BoxFit.cover)
                                       : (kIsWeb
                                           ? Image.memory(_newWebImageBytesList[index - _existingPhotos.length], fit: BoxFit.cover)
                                           : Image.file(File(_newImageFiles[index - _existingPhotos.length].path), fit: BoxFit.cover)),
@@ -498,9 +467,9 @@ class _EditVisitPageState extends State<EditVisitPage> {
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       color: Colors.black54,
-                                      shape: BoxShape.circle,
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Icon(Icons.close, color: Colors.white, size: 16),
                                   ),

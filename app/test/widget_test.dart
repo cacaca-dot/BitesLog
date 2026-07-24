@@ -12,7 +12,7 @@ import 'package:biteslog/main.dart';
 void main() {
   testWidgets('Tampilan awal BitesLog', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const BitesLogApp());
+    await tester.pumpWidget(const MyApp());
 
     // Verifikasi apakah teks selamat datang muncul.
     expect(find.text('Selamat datang di BitesLog'), findsOneWidget);

@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
+import '../../core/utils.dart';
 import '../../services/api_service.dart';
-import '../../models/cafe.dart';
+import '../../core/widgets/local_image.dart';
 import '../cafes/cafe_detail_page.dart';
 import 'create_edit_list_page.dart';
-import '../../services/auth_service.dart';
-import '../../core/widgets/threaded_comments_section.dart';
 
 class ListDetailPage extends StatefulWidget {
   final String listId;
-  final String? focusCommentId;
 
-  const ListDetailPage({super.key, required this.listId, this.focusCommentId});
+  const ListDetailPage({super.key, required this.listId});
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -21,12 +19,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
   Map<String, dynamic>? _listData;
   bool _isLoading = true;
   String? _error;
-  String? _currentUserId;
-  
-  bool _isLiked = false;
-  bool _isSaved = false;
-  int _likeCount = 0;
-  int _commentCount = 0;
   bool _hasChanged = false;
 
   final ScrollController _scrollController = ScrollController();
@@ -46,83 +38,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
   Future<void> _fetchDetail() async {
     setState(() { _isLoading = true; _error = null; });
     try {
-      _currentUserId = await AuthService.getUserId();
       final data = await ApiService.getListDetail(widget.listId);
       if (mounted) {
         setState(() {
           _listData = data;
-          _isLiked = data['is_liked'] ?? false;
-          _isSaved = data['is_saved'] ?? false;
-          _likeCount = data['like_count'] ?? 0;
-          _commentCount = data['comment_count'] ?? 0;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
-    }
-  }
-
-  Future<void> _toggleLike() async {
-    if (_listData == null) return;
-    final oldLiked = _isLiked;
-    final oldLikeCount = _likeCount;
-
-    // Optimistic UI update
-    setState(() {
-      _isLiked = !_isLiked;
-      _likeCount += _isLiked ? 1 : -1;
-      _hasChanged = true;
-    });
-
-    try {
-      final result = await ApiService.toggleLike('list', widget.listId, oldLiked);
-      // Sinkronisasi dari server jika perlu
-      if (mounted) {
-        setState(() {
-          _isLiked = result['liked'] ?? _isLiked;
-          _likeCount = result['count'] ?? _likeCount;
-        });
-      }
-    } catch (e) {
-      // Rollback on fail
-      if (mounted) {
-        setState(() {
-          _isLiked = oldLiked;
-          _likeCount = oldLikeCount;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    }
-  }
-
-  Future<void> _toggleSave() async {
-    if (_listData == null) return;
-    final oldSaved = _isSaved;
-
-    // Optimistic UI update
-    setState(() {
-      _isSaved = !_isSaved;
-      _hasChanged = true;
-    });
-
-    try {
-      final result = await ApiService.toggleSaveList(widget.listId, oldSaved);
-      if (mounted) {
-        setState(() {
-          _isSaved = result['is_saved'] ?? _isSaved;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isSaved ? 'Tersimpan di List Tersimpan ✓' : 'Dihapus dari List Tersimpan'))
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isSaved = oldSaved;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
     }
   }
 
@@ -166,14 +90,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     final list = _listData!;
-    final isOwner = list['is_owner'] == true;
     final items = list['items'] as List<dynamic>? ?? [];
-    final author = list['author'] ?? {};
 
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pop(context, _hasChanged);
-        return false;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          Navigator.pop(context, _hasChanged);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -183,12 +107,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
           ),
           title: Text(list['title'] ?? 'List Detail'),
           actions: [
-          if (!isOwner)
-            IconButton(
-              icon: Icon(_isSaved ? Icons.library_add_check : Icons.library_add, color: AppColors.primary),
-              onPressed: _toggleSave,
-            ),
-          if (isOwner)
             IconButton(
               icon: const Icon(Icons.edit, color: AppColors.primary),
               onPressed: () async {
@@ -199,8 +117,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
                       initialId: list['id'],
                       initialTitle: list['title'],
                       initialDescription: list['description'],
-                      initialIsPublic: list['is_public'] ?? true,
+                      initialIsPublic: true,
                       initialItems: List<Map<String, dynamic>>.from(items),
+                      initialCoverImage: list['cover_image'],
                     ),
                   ),
                 );
@@ -211,213 +130,141 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 }
               },
             ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _fetchDetail,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // HEADER SECTION
-              Container(
-                color: AppColors.card,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        list['is_public'] == true ? 'PUBLIC' : 'PRIVATE',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(list['title'] ?? '', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.text)),
-                    if (list['description'] != null && list['description'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(list['description'], style: TextStyle(fontSize: 16, color: Colors.grey[700])),
-                    ],
-                    const SizedBox(height: 24),
-                    // AUTHOR ROW
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: AppColors.accent,
-                          backgroundImage: author['avatar_url'] != null ? NetworkImage(author['avatar_url']) : null,
-                          child: author['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.primary) : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(author['full_name'] ?? 'Unknown Author', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
-                              Text('@${author['username'] ?? 'username'}', style: const TextStyle(fontSize: 12, color: AppColors.secondary)),
-                            ],
-                          ),
-                        ),
-                        // ACTIONS (LIKE & COMMENT)
-                        Row(
-                          children: [
-                            InkWell(
-                              onTap: _toggleLike,
-                              borderRadius: BorderRadius.circular(24),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: AppColors.primary, size: 24),
-                                    const SizedBox(width: 4),
-                                    Text('$_likeCount', style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            InkWell(
-                              onTap: () {
-                                _scrollController.animateTo(
-                                  _scrollController.position.maxScrollExtent,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeOut,
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(24),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.chat_bubble_outline, color: AppColors.secondary, size: 24),
-                                    const SizedBox(width: 4),
-                                    Text('$_commentCount', style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: _fetchDetail,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (list['cover_image'] != null && list['cover_image'].toString().isNotEmpty)
+                  SizedBox(
+                    height: 200,
+                    width: double.infinity,
+                    child: LocalImage(list['cover_image'], fit: BoxFit.cover),
+                  ),
+                Container(
+                  color: AppColors.card,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(list['title'] ?? '', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.text)),
+                      if (list['description'] != null && list['description'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(list['description'], style: TextStyle(fontSize: 16, color: Colors.grey[700])),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // ITEMS SECTION
-              if (items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(child: Text('Belum ada cafe di list ini.', style: TextStyle(color: AppColors.secondary))),
-                )
-              else
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    '${items.length} Kafe',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    final rating = item['avg_rating'] != null ? double.tryParse(item['avg_rating'].toString()) ?? 0.0 : 0.0;
-                    final pos = (item['position'] ?? index) + 1;
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      color: AppColors.card,
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () {
-                          final cafeId = item['cafe_id']?.toString();
-                          if (cafeId != null && cafeId.isNotEmpty) {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: cafeId)));
-                          }
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Number Badge
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: AppColors.primary,
-                                child: Text('$pos', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                              ),
-                              const SizedBox(width: 12),
-                              // Info
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(item['name'] ?? 'Unknown', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text)),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        _buildRatingStars(rating),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text('${(item['categories'] as List?)?.join(', ') ?? ''} • ${item['city'] ?? ''}', style: const TextStyle(fontSize: 12, color: AppColors.secondary)),
-                                    
-                                    // Curator Note Bubble
-                                    if (item['note'] != null && item['note'].toString().trim().isNotEmpty) ...[
-                                      const SizedBox(height: 12),
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withOpacity(0.2),
-                                          borderRadius: const BorderRadius.only(
-                                            topRight: Radius.circular(12),
-                                            bottomLeft: Radius.circular(12),
-                                            bottomRight: Radius.circular(12),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          item['note'],
-                                          style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.text, fontSize: 13),
-                                        ),
-                                      ),
-                                    ]
-                                  ],
-                                ),
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
+                    return _buildCafeItem(item);
                   },
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
-                ThreadedCommentsSection(
-                  targetType: 'list',
-                  targetId: widget.listId,
-                  currentUserId: _currentUserId,
-                  contentOwnerId: _listData!['author']?['id']?.toString(),
-                  focusCommentId: widget.focusCommentId,
-                  onCountChanged: (count) {
-                    if (mounted) setState(() => _commentCount = count);
-                  },
-                  onCommentsChanged: () {
-                    _hasChanged = true;
-                  },
-                ),
-                const SizedBox(height: 32),
-            ],
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
+  }
+
+  Widget _buildCafeItem(Map<String, dynamic> item) {
+    final double rating = item['cafe_rating'] != null ? double.tryParse(item['cafe_rating'].toString()) ?? 0.0 : 0.0;
+    
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: item['cafe_id'].toString())),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 80, height: 80,
+                child: (item['cafe_image'] != null && item['cafe_image'].toString().isNotEmpty)
+                    ? LocalImage(item['cafe_image'], fit: BoxFit.cover, errorWidget: Container(color: AppColors.accent, child: const Icon(Icons.local_cafe, color: AppColors.secondary)))
+                    : Container(color: AppColors.accent, child: const Icon(Icons.local_cafe, color: AppColors.secondary)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['cafe_name'] ?? 'Unknown Cafe',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(LocationHelper.formatLocation(item['cafe_area']?.toString(), item['cafe_city']?.toString()), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Text(item['cafe_price'] ?? '\$\$', style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _buildRatingStars(rating),
+                  if (item['notes'] != null && item['notes'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '📝 ${item['notes']}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[800], fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ]
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

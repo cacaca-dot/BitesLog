@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/local_image.dart';
 import '../../services/api_service.dart';
 import 'create_edit_list_page.dart';
 import 'list_detail_page.dart';
@@ -12,60 +13,6 @@ class ListsPage extends StatefulWidget {
 }
 
 class _ListsPageState extends State<ListsPage> {
-  final GlobalKey<_MyListsTabState> _myListsKey = GlobalKey();
-  final GlobalKey<_SavedListsTabState> _savedListsKey = GlobalKey();
-
-  Future<void> _openCreateList(BuildContext context) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CreateEditListPage()),
-    );
-    if (result == true) {
-      _myListsKey.currentState?.fetch();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Lists', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
-          actions: [
-            TextButton.icon(
-              onPressed: () => _openCreateList(context),
-              icon: const Icon(Icons.add, color: AppColors.primary),
-              label: const Text('Buat List', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'List Saya'),
-              Tab(text: 'Tersimpan'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _MyListsTab(key: _myListsKey, onCreateList: () => _openCreateList(context)),
-            _SavedListsTab(key: _savedListsKey),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MyListsTab extends StatefulWidget {
-  final VoidCallback onCreateList;
-  const _MyListsTab({super.key, required this.onCreateList});
-  
-  @override
-  State<_MyListsTab> createState() => _MyListsTabState();
-}
-
-class _MyListsTabState extends State<_MyListsTab> {
   List<dynamic> _lists = [];
   bool _isLoading = true;
   String? _error;
@@ -87,8 +34,33 @@ class _MyListsTabState extends State<_MyListsTab> {
     }
   }
 
+  Future<void> _openCreateList(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateEditListPage()),
+    );
+    if (result == true) {
+      fetch();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        actions: [
+          TextButton.icon(
+            onPressed: () => _openCreateList(context),
+            icon: const Icon(Icons.add, color: AppColors.primary),
+            label: const Text('Buat List', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: Colors.red)));
     if (_lists.isEmpty) {
@@ -99,78 +71,16 @@ class _MyListsTabState extends State<_MyListsTab> {
             const Icon(Icons.format_list_bulleted, size: 64, color: AppColors.secondary),
             const SizedBox(height: 16),
             const Text(
-              'Belum ada list.\nBuat koleksi kafe favoritmu!',
+              'Belum ada daftar.\nBuat koleksi kafe favoritmu!',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.secondary, fontSize: 16),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: widget.onCreateList,
+              onPressed: () => _openCreateList(context),
               icon: const Icon(Icons.add),
-              label: const Text('Buat List'),
+              label: const Text('Buat Daftar'),
             )
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: fetch,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _lists.length,
-        itemBuilder: (context, index) {
-          final list = _lists[index];
-          return ListCard(list: list, onRefresh: fetch);
-        },
-      ),
-    );
-  }
-}
-
-class _SavedListsTab extends StatefulWidget {
-  const _SavedListsTab({super.key});
-  @override
-  State<_SavedListsTab> createState() => _SavedListsTabState();
-}
-
-class _SavedListsTabState extends State<_SavedListsTab> {
-  List<dynamic> _lists = [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    fetch();
-  }
-
-  Future<void> fetch() async {
-    if (!mounted) return;
-    setState(() { _isLoading = true; _error = null; });
-    try {
-      final data = await ApiService.getSavedLists();
-      if (mounted) setState(() { _lists = data; _isLoading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: Colors.red)));
-    if (_lists.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bookmark_border, size: 64, color: AppColors.secondary),
-            SizedBox(height: 16),
-            Text(
-              'Belum ada list tersimpan.',
-              style: TextStyle(color: AppColors.secondary, fontSize: 16),
-            ),
           ],
         ),
       );
@@ -209,17 +119,14 @@ class ListCard extends StatelessWidget {
     if (imageUrl == null || imageUrl.isEmpty) {
       return _buildFallbackTile();
     }
-    return Image.network(
+    return LocalImage(
       imageUrl,
       fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: AppColors.accent.withOpacity(0.3),
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) => _buildFallbackTile(),
+      errorWidget: _buildFallbackTile(),
+      placeholder: Container(
+        color: AppColors.accent.withOpacity(0.3),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
     );
   }
 
@@ -345,7 +252,9 @@ class ListCard extends StatelessWidget {
             // COVER COLLAGE
             SizedBox(
               height: 140,
-              child: _buildMosaic(covers, cafeCount),
+              child: (list['cover_image'] != null && list['cover_image'].toString().isNotEmpty)
+                  ? LocalImage(list['cover_image'], fit: BoxFit.cover, width: double.infinity)
+                  : _buildMosaic(covers, cafeCount),
             ),
             // CONTENT
             Padding(
@@ -363,19 +272,6 @@ class ListCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      // BADGE PUBLIC/PRIVATE
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.accent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          list['is_public'] == true ? 'PUBLIC' : 'PRIVATE',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -385,10 +281,6 @@ class ListCard extends StatelessWidget {
                       const Icon(Icons.restaurant, size: 16, color: AppColors.secondary),
                       const SizedBox(width: 4),
                       Text('${list['cafe_count'] ?? 0} cafes', style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w500)),
-                      const SizedBox(width: 16),
-                      const Icon(Icons.favorite, size: 16, color: AppColors.secondary),
-                      const SizedBox(width: 4),
-                      Text('${list['like_count'] ?? 0} likes', style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ],

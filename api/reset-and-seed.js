@@ -83,9 +83,10 @@ async function run() {
     res = await client.query("DELETE FROM cafes");
     console.log(`  - Deleted ${res.rowCount} cafes`);
 
-    // 2. Buat Curator
-    console.log('👤 Mencari/membuat akun curator...');
+    // 2. Buat Curator dan Pemilik Kafe
+    console.log('👤 Mencari/membuat akun curator dan pemilik...');
     const curatorId = await getOrCreateUser(client, 'curator@biteslog.app', 'curator', 'BitesLog Curator');
+    const pemilikId = await getOrCreateUser(client, 'pemilik@biteslog.app', 'pemilik', 'Pemilik Kafe');
     
     // 3. Buat Reviewers
     console.log('👤 Mencari/membuat akun reviewers dummy...');
@@ -100,6 +101,9 @@ async function run() {
     for (const data of CAFES_DATA) {
       const [name, area, categories, price_range, lat, lng] = data;
       
+      // Kafe Common Grounds dan Saturdays Coffee dimiliki oleh akun pemilikId, sisanya oleh curatorId
+      const ownerId = (name === 'Common Grounds' || name === 'Saturdays Coffee') ? pemilikId : curatorId;
+      
       const insertQ = `
         INSERT INTO cafes (name, city, area, categories, price_range, latitude, longitude, created_by)
         SELECT $1::varchar, 'Bandung', $2, $3::text[], $4, $5, $6, $7
@@ -108,7 +112,7 @@ async function run() {
         )
         RETURNING id
       `;
-      const inserted = await client.query(insertQ, [name, area, categories, price_range, lat, lng, curatorId]);
+      const inserted = await client.query(insertQ, [name, area, categories, price_range, lat, lng, ownerId]);
       
       let id;
       if (inserted.rowCount > 0) {

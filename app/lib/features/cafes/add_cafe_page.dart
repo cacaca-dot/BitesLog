@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -12,13 +11,16 @@ import '../../core/theme.dart';
 import '../../models/cafe.dart';
 import '../../services/api_service.dart';
 import '../../core/utils.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/image_picker_util.dart';
+import '../../core/widgets/local_image.dart';
 import 'cafe_detail_page.dart';
 
 class AddCafePage extends StatefulWidget {
   final bool fromLogVisit;
   final String? initialName;
-  const AddCafePage({super.key, this.fromLogVisit = false, this.initialName});
+  final Map<String, dynamic>? editCafeData;
+  const AddCafePage({super.key, this.fromLogVisit = false, this.initialName, this.editCafeData});
 
   @override
   State<AddCafePage> createState() => _AddCafePageState();
@@ -27,9 +29,9 @@ class AddCafePage extends StatefulWidget {
 class _AddCafePageState extends State<AddCafePage> {
   final _nameController = TextEditingController();
   final List<String> _selectedCategories = [];
+  final _pasteController = TextEditingController();
   final _areaController = TextEditingController();
   final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
   
   static const List<String> _availableCategories = ['Kopi', 'Non-Kopi', 'Dessert', 'Roti', 'Kue', 'Makanan Berat', 'Brunch', 'Lainnya'];
   
@@ -46,20 +48,35 @@ class _AddCafePageState extends State<AddCafePage> {
   bool _allowPop = false;
   
 
+  String? _existingImageUrl;
+
   @override
   void initState() {
     super.initState();
     if (widget.initialName != null) {
       _nameController.text = widget.initialName!;
     }
+    if (widget.editCafeData != null) {
+      final d = widget.editCafeData!;
+      _nameController.text = d['name'] ?? '';
+      _areaController.text = d['area'] ?? '';
+      _addressController.text = d['address'] ?? '';
+      _priceRange = d['price_range'] ?? d['price'];
+      _latitude = d['latitude'] ?? d['lat'];
+      _longitude = d['longitude'] ?? d['lng'];
+      _existingImageUrl = d['image_url'];
+      if (d['categories'] is List) {
+        _selectedCategories.addAll(List<String>.from(d['categories']));
+      }
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _pasteController.dispose();
     _areaController.dispose();
     _addressController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
@@ -114,6 +131,7 @@ class _AddCafePageState extends State<AddCafePage> {
         String street = '';
         String city = '';
 
+        String area = '';
         if (kIsWeb) {
           // Fallback untuk Web karena geocoding butuh API key khusus di Web
           final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}');
@@ -125,6 +143,7 @@ class _AddCafePageState extends State<AddCafePage> {
             
             street = addressObj['road'] ?? addressObj['pedestrian'] ?? '';
             String suburb = addressObj['suburb'] ?? '';
+            area = suburb;
             if (street.isNotEmpty && suburb.isNotEmpty) street += ', $suburb';
             else if (street.isEmpty) street = suburb;
 
@@ -138,6 +157,7 @@ class _AddCafePageState extends State<AddCafePage> {
             
             String streetName = place.street ?? '';
             String subLocality = place.subLocality ?? '';
+            area = subLocality;
             
             List<String> addressParts = [];
             if (streetName.isNotEmpty) addressParts.add(streetName);
@@ -158,19 +178,20 @@ class _AddCafePageState extends State<AddCafePage> {
         
         city = normalizeCity(city);
         
-        if (mounted && (street.isNotEmpty || city.isNotEmpty)) {
+        if (mounted && (street.isNotEmpty || city.isNotEmpty || area.isNotEmpty)) {
           setState(() {
             if (street.isNotEmpty) _addressController.text = street;
-            if (city.isNotEmpty) _cityController.text = city;
           });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lokasi & Alamat berhasil didapatkan!')));
+        } else {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lokasi GPS berhasil, tapi alamat tidak ditemukan.')));
         }
       } catch (e) {
         // Geocoding failed, but we still have lat/lng
         debugPrint('Geocoding error: $e');
-      }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lokasi & Alamat berhasil didapatkan!')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Titik koordinat berhasil disimpan (Geocoding butuh internet).')));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -184,9 +205,7 @@ class _AddCafePageState extends State<AddCafePage> {
   bool _hasUnsavedChanges() {
     if (_nameController.text.trim().isNotEmpty) return true;
     if (_selectedCategories.isNotEmpty) return true;
-    if (_areaController.text.trim().isNotEmpty) return true;
     if (_addressController.text.trim().isNotEmpty) return true;
-    if (_cityController.text.trim().isNotEmpty) return true;
     if (_priceRange != null) return true;
     if (_imageFile != null) return true;
     return false;
@@ -210,23 +229,14 @@ class _AddCafePageState extends State<AddCafePage> {
       builder: (context) => AlertDialog(
         title: const Text('Buang perubahan?', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
         content: const Text('Data kafe ini belum disimpan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
-        actionsAlignment: MainAxisAlignment.center,
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Lanjut Isi', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Lanjut Isi', style: TextStyle(color: AppColors.secondary)),
           ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFD32F2F),
-              side: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Buang', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Buang', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -240,52 +250,64 @@ class _AddCafePageState extends State<AddCafePage> {
     }
   }
 
-  Future<void> _saveCafe({bool force = false}) async {
+  Future<void> _saveCafe() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
     setState(() => _isSaving = true);
     
     try {
-      String? imageUrl;
-      if (_imageBytes != null) {
-        final base64Image = 'data:image/jpeg;base64,' + base64Encode(_imageBytes!);
-        imageUrl = await ApiService.uploadImage(base64Image);
+      final address = _addressController.text.trim();
+      final pasteContent = _pasteController.text.trim();
+      
+      String parsedArea = _areaController.text.trim();
+      String parsedCity = '';
+      
+      final sourceForCity = pasteContent.isNotEmpty ? pasteContent : address;
+      final kotaMatch = RegExp(r'(Kota|Kabupaten)\s+([A-Za-z\s]+)(?:,|$)').firstMatch(sourceForCity);
+      if (kotaMatch != null) {
+        parsedCity = '${kotaMatch.group(1)} ${kotaMatch.group(2)!.trim()}';
       }
 
       final data = {
         'name': name,
-        'categories': _selectedCategories,
-        'area': _areaController.text.trim(),
-        'address': _addressController.text.trim(),
-        'city': _cityController.text.trim(),
+        'categories': _selectedCategories.join(','),
+        'address': address,
+        'area': parsedArea,
+        'city': parsedCity,
         'price_range': _priceRange,
         'latitude': _latitude,
         'longitude': _longitude,
-        'image_url': imageUrl,
       };
+      
+      if (_imageFile != null) {
+        data['image_url'] = _imageFile!.path;
+      }
 
-      // Buang value yang kosong agar tidak dikirim sbg empty string
       data.removeWhere((key, value) => value == null || (value is String && value.isEmpty));
 
-      final result = await ApiService.addCafe(data, force: force);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kafe berhasil ditambahkan!')));
-        
-        final createdCafe = Cafe.fromJson(result['data']);
-        if (widget.fromLogVisit) {
-          Navigator.pop(context, createdCafe);
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: createdCafe.id.toString())),
-          );
+      if (widget.editCafeData != null) {
+        await ApiService.updateCafe(widget.editCafeData!['id'], data);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kafe berhasil diperbarui!')));
+          Navigator.pop(context, true);
         }
-      }
-    } on DuplicateCafeException catch (e) {
-      if (mounted) {
-        _showDuplicateDialog(e.candidates);
+      } else {
+        final result = await ApiService.addCafe(data);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kafe berhasil ditambahkan!')));
+          
+          final createdCafe = Cafe.fromJson(result);
+          if (widget.fromLogVisit) {
+            Navigator.pop(context, createdCafe);
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: createdCafe.id.toString())),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -294,59 +316,6 @@ class _AddCafePageState extends State<AddCafePage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
-  }
-
-  void _showDuplicateDialog(List<dynamic> candidates) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sepertinya cafe ini sudah ada', style: TextStyle(color: AppColors.primary)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: candidates.length,
-            itemBuilder: (context, index) {
-              final c = candidates[index];
-              final distance = c['distance_m'] != null ? '${c['distance_m']}m' : '';
-              final rating = c['avg_rating'] != null ? '⭐ ${c['avg_rating']}' : 'Belum ada rating';
-              
-              return Card(
-                elevation: 1,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  title: Text(c['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${c['city']} - $rating\n$distance'),
-                  isThreeLine: distance.isNotEmpty,
-                  trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                    onPressed: () {
-                      Navigator.pop(context); // close dialog
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CafeDetailPage(cafeId: c['id'].toString()),
-                        ),
-                      );
-                    },
-                    child: const Text('Pakai ini', style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _saveCafe(force: true);
-            },
-            child: const Text('Tetap buat baru', style: TextStyle(color: Colors.grey)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -360,7 +329,7 @@ class _AddCafePageState extends State<AddCafePage> {
           icon: const Icon(Icons.close),
           onPressed: _onWillPop,
         ),
-        title: const Text('Tambah Kafe Baru'),
+        title: Text(widget.editCafeData != null ? 'Edit Kafe' : 'Tambah Kafe Baru'),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,
@@ -415,6 +384,7 @@ class _AddCafePageState extends State<AddCafePage> {
                               final isSelected = _selectedCategories.contains(c);
                               return FilterChip(
                                 label: Text(c, style: const TextStyle(fontSize: 12)),
+                                showCheckmark: false,
                                 selected: isSelected,
                                 selectedColor: AppColors.primary.withValues(alpha: 0.2),
                                 onSelected: (val) {
@@ -431,9 +401,35 @@ class _AddCafePageState extends State<AddCafePage> {
                           ),
                           const SizedBox(height: 16),
                           TextField(
+                            controller: _pasteController,
+                            maxLines: 2,
+                            minLines: 1,
+                            decoration: const InputDecoration(
+                              labelText: 'Tempel Alamat dari Google Maps',
+                              hintText: 'Tempel alamat lengkap di sini...',
+                              helperText: 'Otomatis mengisi Area dan Alamat di bawah',
+                              helperStyle: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                              border: UnderlineInputBorder(),
+                            ),
+                            onChanged: (val) {
+                              if (val.isEmpty) return;
+                              final kecMatch = RegExp(r'Kecamatan\s+([A-Za-z\s]+)(?:,|$)').firstMatch(val);
+                              if (kecMatch != null) {
+                                _areaController.text = kecMatch.group(1)!.trim();
+                              }
+                              final parts = val.split(RegExp(r',\s*Kecamatan'));
+                              if (parts.length > 1) {
+                                _addressController.text = parts[0].trim();
+                              } else {
+                                _addressController.text = val;
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
                             controller: _areaController,
                             decoration: const InputDecoration(
-                              labelText: 'Area / Kecamatan (opsional)',
+                              labelText: 'Area / Kecamatan',
                               hintText: 'Cth: Dago, Braga',
                               border: UnderlineInputBorder(),
                             ),
@@ -441,29 +437,20 @@ class _AddCafePageState extends State<AddCafePage> {
                           const SizedBox(height: 16),
                           TextField(
                             controller: _addressController,
-                            maxLines: 3,
+                            maxLines: 2,
                             minLines: 1,
                             decoration: const InputDecoration(
                               labelText: 'Alamat',
                               hintText: 'Cth: Jl. Sudirman No.1',
-                              helperText: 'Alamat dari GPS cuma perkiraan — koreksi manual biar pas ya.',
-                              helperMaxLines: 2,
+                              helperText: 'Bisa diisi manual atau otomatis',
                               helperStyle: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                               border: UnderlineInputBorder(),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: _cityController,
-                            decoration: const InputDecoration(
-                              labelText: 'Kota (opsional)',
-                              hintText: 'Cth: Jakarta Selatan',
-                              border: UnderlineInputBorder(),
-                            ),
-                          ),
+
                           const SizedBox(height: 24),
                           
-                          const Text('Kisaran Harga (opsional)', style: TextStyle(color: AppColors.secondary, fontSize: 12)),
+                          const Text('Kisaran Harga', style: TextStyle(color: AppColors.secondary, fontSize: 12)),
                           const SizedBox(height: 8),
                           SegmentedButton<String>(
                             segments: PriceHelper.availableRanges.map((range) {
@@ -501,24 +488,46 @@ class _AddCafePageState extends State<AddCafePage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // LOCATION BUTTON
-                    ElevatedButton.icon(
-                      onPressed: _isLoadingLocation ? null : _getLocation,
-                      icon: _isLoadingLocation 
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.my_location),
-                      label: Text(_latitude != null ? 'Lokasi & Alamat Tersimpan' : 'Pakai lokasi sekarang (GPS)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _latitude != null ? AppColors.accent : AppColors.card,
-                        foregroundColor: _latitude != null ? AppColors.text : AppColors.primary,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                    // LOCATION BUTTONS
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoadingLocation ? null : _getLocation,
+                            icon: _isLoadingLocation 
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.my_location, size: 20),
+                            label: Text(
+                              _latitude != null ? 'Diperbarui' : 'Lokasi Saat Ini',
+                              style: const TextStyle(fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.card,
+                              foregroundColor: AppColors.primary,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_latitude != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.check_circle, color: Colors.green, size: 16),
+                            SizedBox(width: 4),
+                            Text('Koordinat lokasi tersimpan', style: TextStyle(color: Colors.green, fontSize: 12)),
+                          ],
                         ),
                       ),
-                    ),
                     const SizedBox(height: 16),
 
                     // IMAGE PICKER BUTTON
@@ -528,6 +537,11 @@ class _AddCafePageState extends State<AddCafePage> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Image.memory(_imageBytes!, height: 150, width: double.infinity, fit: BoxFit.cover),
+                          )
+                        else if (_existingImageUrl != null)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: LocalImage(_existingImageUrl, height: 150, width: double.infinity, fit: BoxFit.cover),
                           ),
                         const SizedBox(height: 8),
                         ElevatedButton.icon(

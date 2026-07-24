@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
+import '../../core/widgets/local_image.dart';
 import '../cafes/cafe_detail_page.dart';
 
 class WatchlistPage extends StatefulWidget {
   const WatchlistPage({super.key});
 
   @override
-  State<WatchlistPage> createState() => _WatchlistPageState();
+  State<WatchlistPage> createState() => WatchlistPageState();
 }
 
-class _WatchlistPageState extends State<WatchlistPage> {
+class WatchlistPageState extends State<WatchlistPage> {
   List<dynamic> _watchlist = [];
   bool _isLoading = true;
   String? _error;
@@ -18,10 +19,10 @@ class _WatchlistPageState extends State<WatchlistPage> {
   @override
   void initState() {
     super.initState();
-    _fetchWatchlist();
+    fetchWatchlist();
   }
 
-  Future<void> _fetchWatchlist() async {
+  Future<void> fetchWatchlist() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -75,33 +76,30 @@ class _WatchlistPageState extends State<WatchlistPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Ingin Dikunjungi'),
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        foregroundColor: AppColors.text,
-      ),
-      body: _isLoading 
+    return Container(
+      color: AppColors.background,
+      child: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
         : _error != null
           ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
           : _watchlist.isEmpty
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.push_pin_outlined, size: 48, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text(
-                        'Belum ada cafe di Ingin Dikunjungi — tandai cafe yang pengen kamu datangi',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.secondary, fontSize: 16),
-                      ),
-                    ],
+            ? Center(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.push_pin_outlined, size: 48, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'Belum ada kafe yang ingin dikunjungi. Jelajahi & tandai kafe incaranmu!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.secondary, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               )
@@ -110,7 +108,9 @@ class _WatchlistPageState extends State<WatchlistPage> {
                 itemCount: _watchlist.length,
                 itemBuilder: (context, index) {
                   final item = _watchlist[index];
-                  final rating = item['avg_rating'] != null ? '⭐ ${item['avg_rating']}' : 'Belum ada rating';
+                  final rawRating = item['rating'] ?? item['avg_rating'];
+                  final double ratingVal = rawRating != null ? (double.tryParse(rawRating.toString()) ?? 0.0) : 0.0;
+                  final rating = ratingVal > 0 ? '⭐ ${ratingVal.toStringAsFixed(1)}' : 'Belum ada rating';
                   
                   return Dismissible(
                     key: Key(item['id'].toString()),
@@ -139,7 +139,7 @@ class _WatchlistPageState extends State<WatchlistPage> {
                             MaterialPageRoute(
                               builder: (_) => CafeDetailPage(cafeId: item['id'].toString()),
                             ),
-                          ).then((_) => _fetchWatchlist()); // Refresh on back just in case
+                          ).then((_) => fetchWatchlist()); // Refresh on back just in case
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -148,12 +148,12 @@ class _WatchlistPageState extends State<WatchlistPage> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: item['image_url'] != null
-                                    ? Image.network(
+                                    ? LocalImage(
                                         item['image_url'],
                                         width: 60,
                                         height: 60,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                                        errorWidget: _buildPlaceholder(),
                                       )
                                     : _buildPlaceholder(),
                               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../models/cafe.dart';
+import '../../core/widgets/local_image.dart';
 import '../cafes/cafe_detail_page.dart';
 import '../search/search_page.dart';
 import '../../core/utils.dart';
@@ -27,7 +28,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   List<String> _selectedAreas = [];
   String? _selectedMinRating;
   List<String> _selectedPrices = [];
-
+  String? _selectedVisitStatus;
   @override
   void initState() {
     super.initState();
@@ -60,7 +61,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
         categories: _selectedCategories.isNotEmpty ? _selectedCategories : null,
         areas: _selectedAreas.isNotEmpty ? _selectedAreas : null,
         minRating: _selectedMinRating != null ? double.tryParse(_selectedMinRating!) : null,
-        priceRange: _selectedPrices.isNotEmpty ? _selectedPrices.join(',') : null,
+        prices: _selectedPrices.isNotEmpty ? _selectedPrices : null,
+        visitStatus: _selectedVisitStatus,
       );
       final List<Cafe> parsedCafes = data.map((e) => Cafe.fromJson(e as Map<String, dynamic>)).toList();
       
@@ -68,7 +70,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
         setState(() {
           _catalog = parsedCafes;
           if (!_isFilterActive) {
-            _popular = List<Cafe>.from(parsedCafes)..sort((a, b) => b.visitCount.compareTo(a.visitCount));
+            _popular = parsedCafes.where((c) => c.rating > 0).toList()
+              ..sort((a, b) => b.rating.compareTo(a.rating));
           }
           _loading = false;
         });
@@ -83,8 +86,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
     }
   }
 
-  bool get _isFilterActive => _selectedCategories.isNotEmpty || _selectedAreas.isNotEmpty || _selectedMinRating != null || _selectedPrices.isNotEmpty;
-  int get _activeFilterCount => _selectedCategories.length + _selectedAreas.length + (_selectedMinRating != null ? 1 : 0) + _selectedPrices.length;
+  bool get _isFilterActive => _selectedCategories.isNotEmpty || _selectedAreas.isNotEmpty || _selectedMinRating != null || _selectedPrices.isNotEmpty || _selectedVisitStatus != null;
+  int get _activeFilterCount => _selectedCategories.length + _selectedAreas.length + (_selectedMinRating != null ? 1 : 0) + _selectedPrices.length + (_selectedVisitStatus != null ? 1 : 0);
 
   void _resetFilters() {
     setState(() {
@@ -92,6 +95,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       _selectedAreas.clear();
       _selectedMinRating = null;
       _selectedPrices.clear();
+      _selectedVisitStatus = null;
     });
     _fetchData();
   }
@@ -130,6 +134,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               final isSelected = _selectedCategories.contains(c);
                               return FilterChip(
                                 label: Text(c),
+                                showCheckmark: false,
                                 selected: isSelected,
                                 selectedColor: AppColors.primary.withValues(alpha: 0.2),
                                 onSelected: (val) {
@@ -141,8 +146,28 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               );
                             }).toList(),
                           ),
+
+                          const Text('Status Kunjungan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: ['Sudah Dikunjungi', 'Belum Dikunjungi'].map((s) {
+                              final isSelected = _selectedVisitStatus == s;
+                              return ChoiceChip(
+                                label: Text(s),
+                                showCheckmark: false,
+                                selected: isSelected,
+                                selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    _selectedVisitStatus = val ? s : null;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
                           const SizedBox(height: 20),
-                          const Text('Rating Minimum', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Text('Rating', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
@@ -150,6 +175,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               final isSelected = _selectedMinRating == r;
                               return ChoiceChip(
                                 label: Text('$r+'),
+                                showCheckmark: false,
                                 selected: isSelected,
                                 selectedColor: AppColors.primary.withValues(alpha: 0.2),
                                 onSelected: (val) {
@@ -169,6 +195,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               final isSelected = _selectedPrices.contains(p);
                               return FilterChip(
                                 label: Text(PriceHelper.getFullLabel(p)),
+                                showCheckmark: false,
                                 selected: isSelected,
                                 selectedColor: AppColors.primary.withValues(alpha: 0.2),
                                 onSelected: (val) {
@@ -190,6 +217,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                               final isSelected = _selectedAreas.contains(a);
                               return FilterChip(
                                 label: Text(a),
+                                showCheckmark: false,
                                 selected: isSelected,
                                 selectedColor: AppColors.primary.withValues(alpha: 0.2),
                                 onSelected: (val) {
@@ -215,6 +243,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                 _selectedAreas.clear();
                                 _selectedMinRating = null;
                                 _selectedPrices.clear();
+                                _selectedVisitStatus = null;
                               });
                             },
                             child: const Text('Reset'),
@@ -288,6 +317,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
       ));
     }
 
+    if (_selectedVisitStatus != null) {
+      chips.add(InputChip(
+        label: Text(_selectedVisitStatus!, style: const TextStyle(fontSize: 12)),
+        onDeleted: () {
+          setState(() => _selectedVisitStatus = null);
+          _fetchData();
+        },
+      ));
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SingleChildScrollView(
@@ -305,48 +344,20 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text('📍 Bandung', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: _showFilterBottomSheet,
-              ),
-              if (_isFilterActive)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$_activeFilterCount',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-            ],
+          TextButton.icon(
+            icon: const Icon(Icons.tune),
+            label: Text(
+              _isFilterActive ? 'Filter • $_activeFilterCount' : 'Filter',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: _isFilterActive ? AppColors.primary : AppColors.text,
+            ),
+            onPressed: _showFilterBottomSheet,
           ),
           const SizedBox(width: 8),
         ],
@@ -371,40 +382,50 @@ class _DiscoverPageState extends State<DiscoverPage> {
                             ],
                           ),
                         )
-                      : _catalog.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                      : ListView(
+                          children: [
+                            if (!_isFilterActive && _popular.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              _PopularSection(cafes: _popular, onRefresh: _fetchData),
+                              const SizedBox(height: 24),
+                              const Divider(),
+                            ],
+                            
+                            const SizedBox(height: 16),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(Icons.search_off, size: 48, color: Colors.grey),
-                                  const SizedBox(height: 16),
-                                  const Text('Nggak ada cafe yang cocok sama filter ini.', style: TextStyle(color: Colors.grey)),
+                                  Text(
+                                    _isFilterActive ? 'Hasil Filter (${_catalog.length})' : 'Katalog Kafe',
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
+                                  ),
                                   if (_isFilterActive)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 16),
-                                      child: OutlinedButton(
-                                        onPressed: _resetFilters,
-                                        child: const Text('Reset Filter'),
+                                    TextButton(
+                                      onPressed: _resetFilters,
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red,
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                    )
+                                      child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    ),
                                 ],
                               ),
-                            )
-                          : ListView(
-                              children: [
-                                if (!_isFilterActive && _popular.isNotEmpty)
-                                  _RowSection(title: 'Popular this week', cafes: _popular),
-                                
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                                  child: Text(_isFilterActive ? 'Hasil Filter (${_catalog.length})' : 'Browse catalog',
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                ),
-                                
-                                _CatalogGrid(catalog: _catalog),
-                                const SizedBox(height: 24),
-                              ],
                             ),
+                            const SizedBox(height: 12),
+                            if (_catalog.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(32),
+                                child: Center(child: Text('Tidak ada kafe yang cocok dengan filter.', textAlign: TextAlign.center)),
+                              )
+                            else
+                              _CatalogGrid(catalog: _catalog, onRefresh: _fetchData),
+                            const SizedBox(height: 32),
+                          ],
+                        ),
             ),
           ],
         ),
@@ -431,7 +452,7 @@ class _SearchBar extends StatelessWidget {
           );
         },
         decoration: InputDecoration(
-          hintText: 'Cari cafe, orang, atau list...',
+          hintText: 'Cari cafe atau list...',
           prefixIcon: const Icon(Icons.search),
           filled: true,
           fillColor: AppColors.card,
@@ -446,10 +467,10 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _RowSection extends StatelessWidget {
-  final String title;
+class _PopularSection extends StatelessWidget {
   final List<Cafe> cafes;
-  const _RowSection({required this.title, required this.cafes});
+  final VoidCallback onRefresh;
+  const _PopularSection({required this.cafes, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -458,7 +479,7 @@ class _RowSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(title,
+          child: Text('Rating Tertinggi',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
         SizedBox(
@@ -468,7 +489,7 @@ class _RowSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: cafes.length,
             separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (_, i) => _CafeCard(cafe: cafes[i], width: 160),
+            itemBuilder: (_, i) => _CafeCard(cafe: cafes[i], width: 160, onRefresh: onRefresh),
           ),
         ),
       ],
@@ -478,7 +499,8 @@ class _RowSection extends StatelessWidget {
 
 class _CatalogGrid extends StatelessWidget {
   final List<Cafe> catalog;
-  const _CatalogGrid({required this.catalog});
+  final VoidCallback onRefresh;
+  const _CatalogGrid({required this.catalog, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -493,7 +515,7 @@ class _CatalogGrid extends StatelessWidget {
         crossAxisSpacing: 12,
         childAspectRatio: 0.72,
       ),
-      itemBuilder: (_, i) => _CafeCard(cafe: catalog[i]),
+      itemBuilder: (_, i) => _CafeCard(cafe: catalog[i], onRefresh: onRefresh),
     );
   }
 }
@@ -501,16 +523,20 @@ class _CatalogGrid extends StatelessWidget {
 class _CafeCard extends StatelessWidget {
   final Cafe cafe;
   final double? width;
-  const _CafeCard({required this.cafe, this.width});
+  final VoidCallback? onRefresh;
+  const _CafeCard({required this.cafe, this.width, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => CafeDetailPage(cafeId: cafe.id)),
         );
+        if (result == true && onRefresh != null) {
+          onRefresh!();
+        }
       },
       child: Container(
         width: width,
@@ -531,11 +557,11 @@ class _CafeCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 16 / 10,
-            child: (cafe.imageUrl.isNotEmpty && cafe.imageUrl.startsWith('http')) 
-              ? Image.network(
+            child: cafe.imageUrl.isNotEmpty
+              ? LocalImage(
                   cafe.imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  errorWidget: Container(
                     color: AppColors.card,
                     child: const Icon(Icons.local_cafe, color: AppColors.secondary, size: 40),
                   ),
@@ -562,16 +588,26 @@ class _CafeCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.star, color: Colors.orange, size: 14),
-                    const SizedBox(width: 4),
-                    Text(cafe.rating.toStringAsFixed(1),
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    if (cafe.rating > 0) ...[
+                      const Icon(Icons.star, color: Colors.orange, size: 14),
+                      const SizedBox(width: 4),
+                      Text(cafe.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ] else ...[
+                      const Text('Belum dinilai', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
                     if (cafe.priceRange != null && cafe.priceRange!.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Text('•', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('•', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       const SizedBox(width: 8),
-                      Text(PriceHelper.getFullLabel(cafe.priceRange!), style: const TextStyle(color: Colors.green, fontSize: 12)),
+                      Expanded(
+                        child: Text(
+                          PriceHelper.getFullLabel(cafe.priceRange!), 
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ]
+
                   ],
                 ),
               ],

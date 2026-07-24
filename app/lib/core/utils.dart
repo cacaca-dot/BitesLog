@@ -46,3 +46,17 @@ class CurrencyInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+class LocationHelper {
+  static String formatLocation(String? area, String? city) {
+    final a = (area ?? '').trim();
+    final c = (city ?? '').trim();
+    
+    final parts = <String>[];
+    if (a.isNotEmpty && a.toLowerCase() != 'unknown area') parts.add(a);
+    if (c.isNotEmpty && c.toLowerCase() != 'unknown city') parts.add(c);
+    
+    if (parts.isEmpty) return 'Lokasi tidak diketahui';
+    return parts.join(', ');
+  }
+}

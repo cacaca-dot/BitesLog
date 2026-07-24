@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
-import '../../services/auth_service.dart';
+import '../../services/local_repository.dart';
+import '../../core/widgets/local_image.dart';
 import 'edit_visit_page.dart';
 import '../cafes/cafe_detail_page.dart';
 import '../../core/globals.dart';
 import '../profile/profile_page.dart';
-import '../../core/widgets/threaded_comments_section.dart';
 
 class VisitDetailPage extends StatefulWidget {
   final String visitId;
@@ -25,10 +26,6 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
   String? _currentUserId;
 
   bool _hasChanged = false;
-  
-  bool _isLiked = false;
-  int _likeCount = 0;
-  int _commentCount = 0;
 
   @override
   void initState() {
@@ -39,15 +36,13 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      _currentUserId = await AuthService.getUserId();
+      _currentUserId = await LocalRepository.getUserId();
       
       final visit = await ApiService.getVisitDetail(widget.visitId);
       
       if (mounted) {
         setState(() {
           _visit = visit;
-          _isLiked = visit['is_liked'] ?? false;
-          _likeCount = int.tryParse(visit['like_count']?.toString() ?? '0') ?? 0;
           _error = null;
           _isLoading = false;
         });
@@ -106,29 +101,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
     }
   }
 
-  Future<void> _toggleLike() async {
-    final previousState = _isLiked;
-    final previousCount = _likeCount;
-    
-    setState(() {
-      _isLiked = !_isLiked;
-      _likeCount += _isLiked ? 1 : -1;
-    });
-
-    try {
-      await ApiService.toggleLike('review', widget.visitId, previousState);
-      _hasChanged = true;
-    } catch (e) {
-      // Revert if failed
-      if (mounted) {
-        setState(() {
-          _isLiked = previousState;
-          _likeCount = previousCount;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal toggle like: $e')));
-      }
-    }
-  }
+  // Removed _toggleLike
 
 
 
@@ -159,7 +132,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
 
     if (_error != null || _visit == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Visit Detail')),
+        appBar: AppBar(),
         body: Center(child: Text('Gagal memuat: $_error')),
       );
     }
@@ -179,7 +152,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: const Text('Visit Detail'),
+
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.text,
@@ -222,12 +195,12 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                               itemBuilder: (context, index) {
                                 return Stack(
                                   children: [
-                                    Image.network(
-                                      photos[index]['url'],
+                                    LocalImage(
+                                      photos[index] is String ? photos[index] : (photos[index] is Map ? (photos[index]['url'] ?? photos[index]['photo_url'])?.toString() : null),
                                       height: 250,
                                       width: double.infinity,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
+                                      errorWidget: Container(
                                         height: 250,
                                         width: double.infinity,
                                         color: AppColors.card,
@@ -271,29 +244,12 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // USER INFO
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: AppColors.accent,
-                                backgroundImage: v['avatar_url'] != null ? NetworkImage(v['avatar_url']) : null,
-                                child: v['avatar_url'] == null 
-                                    ? Text(v['username'] != null && v['username'].toString().isNotEmpty ? v['username'][0].toUpperCase() : 'U')
-                                    : null,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(v['username'] ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    if (v['visit_date'] != null)
-                                      Text(_formatDate(v['visit_date']), style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                          // DATE
+                          if (v['visit_date'] != null)
+                            Text(
+                              _formatDate(v['visit_date']?.toString() ?? ''), 
+                              style: const TextStyle(color: Colors.grey, fontSize: 14)
+                            ),
                           const SizedBox(height: 16),
 
                           // CAFE INFO
@@ -315,8 +271,8 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(v['cafe_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary)),
-                                      Text(v['cafe_city'] ?? '', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                      Text(v['cafe_name']?.toString() ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary)),
+                                      Text(LocationHelper.formatLocation(v['cafe_area']?.toString(), v['cafe_city']?.toString()), style: const TextStyle(color: Colors.grey, fontSize: 13)),
                                     ],
                                   ),
                                 ),
@@ -353,15 +309,15 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                               if (v['favorite_drink'] != null && v['favorite_drink'].toString().trim().isNotEmpty)
                                 Chip(
                                   avatar: const Icon(Icons.local_cafe, size: 16, color: AppColors.primary),
-                                  label: Text(v['favorite_drink']),
+                                  label: Text(v['favorite_drink']?.toString() ?? ''),
                                   backgroundColor: AppColors.accent.withOpacity(0.5),
                                   side: BorderSide.none,
                                 ),
                               if (v['price'] != null && v['price'].toString().trim().isNotEmpty)
                                 Chip(
-                                  avatar: const Icon(Icons.payments, size: 16, color: Colors.green),
+                                  avatar: const Icon(Icons.payments, size: 16, color: Colors.grey),
                                   label: Text(_formatRupiah(v['price'])),
-                                  backgroundColor: Colors.green.withOpacity(0.1),
+                                  backgroundColor: AppColors.card,
                                   side: BorderSide.none,
                                 ),
                             ],
@@ -373,7 +329,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                           if (v['review'] != null && v['review'].toString().trim().isNotEmpty) ...[
                             const Text('The Experience', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             const SizedBox(height: 8),
-                            Text(v['review'], style: const TextStyle(height: 1.5, fontSize: 15)),
+                            Text(v['review']?.toString() ?? '', style: const TextStyle(height: 1.5, fontSize: 15)),
                             const SizedBox(height: 16),
                           ],
 
@@ -404,37 +360,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                             const SizedBox(height: 24),
                           ],
 
-                          const Divider(),
-                          
-                          // LIKES & COMMENTS HEADER
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? Colors.red : Colors.grey),
-                                onPressed: _toggleLike,
-                              ),
-                              Text('$_likeCount', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(width: 24),
-                              const Icon(Icons.mode_comment_outlined, color: Colors.grey),
-                              const SizedBox(width: 8),
-                              Text('$_commentCount', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                          const Divider(),
-
-                          ThreadedCommentsSection(
-                            targetType: 'review',
-                            targetId: widget.visitId,
-                            currentUserId: _currentUserId,
-                            contentOwnerId: _visit!['user_id']?.toString(),
-                            focusCommentId: widget.focusCommentId,
-                            onCountChanged: (count) {
-                              if (mounted) setState(() => _commentCount = count);
-                            },
-                            onCommentsChanged: () {
-                              _hasChanged = true;
-                            },
-                          ),
+                          // Removed likes and comments section
                         ],
                       ),
                     ),

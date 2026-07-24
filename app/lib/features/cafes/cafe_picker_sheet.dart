@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/cafe.dart';
 import '../../services/api_service.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/local_image.dart';
 import 'add_cafe_page.dart';
 
 class CafePickerSheet extends StatefulWidget {
@@ -138,12 +139,18 @@ class _CafePickerSheetState extends State<CafePickerSheet> {
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: AppColors.accent,
-                              backgroundImage: NetworkImage(cafe.imageUrl),
-                              onBackgroundImageError: (_, __) {},
-                              child: cafe.imageUrl.isEmpty ? const Icon(Icons.local_cafe, color: Colors.white) : null,
+                              child: ClipOval(
+                                child: LocalImage(
+                                  cafe.imageUrl,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorWidget: const Icon(Icons.local_cafe, color: Colors.white),
+                                ),
+                              ),
                             ),
                             title: Text(cafe.name, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.text)),
-                            subtitle: Text(cafe.city ?? 'Unknown City', style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+                            subtitle: Text(cafe.city, style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
                             onTap: () => widget.onSelected(cafe),
                           );
                         },

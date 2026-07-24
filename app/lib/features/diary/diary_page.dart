@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
+import '../../core/utils.dart';
+import '../../core/widgets/local_image.dart';
 import '../visit/visit_detail_page.dart';
 import '../log/log_visit_page.dart';
 
@@ -142,7 +144,12 @@ class _DiaryPageState extends State<DiaryPage> {
   }
 
   Widget _buildEntryCard(Map<String, dynamic> v) {
-    final photo = (v['photos'] != null && (v['photos'] as List).isNotEmpty) ? v['photos'][0]['url'] : (v['photo_path'] ?? v['cafe_image']);
+    String? photoUrl;
+    if (v['photos'] != null && (v['photos'] as List).isNotEmpty) {
+      final firstPhoto = v['photos'][0];
+      photoUrl = firstPhoto is Map ? firstPhoto['url'] : firstPhoto.toString();
+    }
+    final photo = photoUrl ?? v['photo_path'] ?? v['cafe_image'];
     final rating = v['rating'] != null ? double.tryParse(v['rating'].toString()) ?? 0.0 : 0.0;
     
     return Card(
@@ -155,7 +162,7 @@ class _DiaryPageState extends State<DiaryPage> {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => VisitDetailPage(visitId: v['visit_id'].toString()),
+              builder: (_) => VisitDetailPage(visitId: (v['id'] ?? v['visit_id']).toString()),
             ),
           );
           if (result == true) {
@@ -175,10 +182,10 @@ class _DiaryPageState extends State<DiaryPage> {
                   width: 80,
                   height: 80,
                   child: (photo != null && photo.toString().isNotEmpty)
-                      ? Image.network(
+                      ? LocalImage(
                           photo,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorWidget: Container(
                             color: AppColors.accent,
                             child: const Icon(Icons.local_cafe, color: AppColors.secondary),
                           ),
@@ -216,6 +223,22 @@ class _DiaryPageState extends State<DiaryPage> {
                               Text(rating.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.text)),
                             ],
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            LocationHelper.formatLocation(v['cafe_area'], v['cafe_city']),
+                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
