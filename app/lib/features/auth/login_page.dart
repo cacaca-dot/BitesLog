@@ -40,9 +40,10 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
     if (success == null) {
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
       );
     } else {
       setState(() {

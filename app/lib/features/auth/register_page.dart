@@ -49,10 +49,10 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!mounted) return;
     
     if (error == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainShell()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pendaftaran berhasil! Silakan login.')),
       );
+      Navigator.pop(context);
     } else {
       setState(() {
         _isLoading = false;

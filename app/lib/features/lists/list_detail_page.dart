@@ -188,7 +188,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   Widget _buildCafeItem(Map<String, dynamic> item) {
-    final double rating = item['cafe_rating'] != null ? double.tryParse(item['cafe_rating'].toString()) ?? 0.0 : 0.0;
+    final double rating = item['avg_rating'] != null ? double.tryParse(item['avg_rating'].toString()) ?? 0.0 : 0.0;
     
     return InkWell(
       onTap: () {
@@ -237,7 +237,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
                     children: [
                       const Icon(Icons.location_on, size: 14, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(LocationHelper.formatLocation(item['cafe_area']?.toString(), item['cafe_city']?.toString()), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      Expanded(
+                        child: Text(
+                          LocationHelper.formatLocation(item['cafe_area']?.toString(), item['cafe_city']?.toString()),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Text(item['cafe_price'] ?? '\$\$', style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],

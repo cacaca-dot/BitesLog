@@ -139,6 +139,7 @@ class _CreateEditListPageState extends State<CreateEditListPage> {
         onSelected: (cafe) {
           final exists = _items.any((item) => item['cafe_id'] == cafe.id);
           if (exists) {
+            Navigator.pop(context);
             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kafe sudah ada di daftar ini')));
             return;
           }
@@ -150,6 +151,7 @@ class _CreateEditListPageState extends State<CreateEditListPage> {
                 'cafe_name': cafe.name,
                 'cafe_area': cafe.area,
                 'cafe_city': cafe.city,
+                'avg_rating': cafe.rating,
                 'image_url': cafe.imageUrl,
                 'notes': '',
               });
@@ -376,7 +378,26 @@ class _CreateEditListPageState extends State<CreateEditListPage> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(LocationHelper.formatLocation(item['cafe_area']?.toString(), item['cafe_city']?.toString()), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star, color: Colors.orange, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    item['avg_rating'] != null && double.tryParse(item['avg_rating'].toString()) != null && double.parse(item['avg_rating'].toString()) > 0
+                                        ? double.parse(item['avg_rating'].toString()).toStringAsFixed(1)
+                                        : '-',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      LocationHelper.formatLocation(item['cafe_area']?.toString(), item['cafe_city']?.toString()),
+                                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               if (hasNote) ...[
                                 const SizedBox(height: 4),
                                 Text(

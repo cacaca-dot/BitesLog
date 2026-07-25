@@ -204,8 +204,10 @@ class LocalRepository {
     }
 
     whereArgs.insert(0, userId);
+    whereArgs.insert(0, userId);
     final res = await db.rawQuery('''
-      SELECT c.*, c.price as price_range, c.rating as avg_rating, 
+      SELECT c.*, c.price as price_range, 
+             COALESCE((SELECT AVG(rating) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?), c.rating) as avg_rating, 
              (SELECT COUNT(*) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?) as visit_count
       FROM cafes c
       WHERE $where
@@ -253,12 +255,13 @@ class LocalRepository {
     final userId = await getUserId();
     final db = await _dbService.database;
     final res = await db.rawQuery('''
-      SELECT c.*, c.price as price_range, c.rating as avg_rating, 
+      SELECT c.*, c.price as price_range, 
+             COALESCE((SELECT AVG(rating) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?), c.rating) as avg_rating, 
              (SELECT COUNT(*) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?) as visit_count,
              (SELECT COUNT(*) FROM watchlist w WHERE w.cafe_id = c.id AND w.user_id = ?) as in_watchlist_count
       FROM cafes c
       WHERE c.id = ?
-    ''', [userId, userId, id]);
+    ''', [userId, userId, userId, id]);
     if (res.isEmpty) return null;
     
     final cafe = Map<String, dynamic>.from(res.first);
@@ -561,13 +564,15 @@ class LocalRepository {
     if (lists.isEmpty) return null;
     
     final result = Map<String, dynamic>.from(lists.first);
+    final userId = await getUserId();
     final itemsRes = await db.rawQuery('''
-      SELECT li.*, c.name as cafe_name, c.area as cafe_area, c.city as cafe_city, c.address as cafe_address, c.image_url as cafe_image, c.price as cafe_price
+      SELECT li.*, c.name as cafe_name, c.area as cafe_area, c.city as cafe_city, c.address as cafe_address, c.image_url as cafe_image, c.price as cafe_price,
+             COALESCE((SELECT AVG(rating) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?), c.rating) as avg_rating
       FROM list_items li
       JOIN cafes c ON li.cafe_id = c.id
       WHERE li.list_id = ?
       ORDER BY li.created_at ASC
-    ''', [listId]);
+    ''', [userId, listId]);
     
     result['items'] = itemsRes.map((row) {
       final item = Map<String, dynamic>.from(row);
@@ -662,12 +667,13 @@ class LocalRepository {
     final userId = await getUserId();
     final db = await _dbService.database;
     final res = await db.rawQuery('''
-      SELECT c.*, w.created_at as saved_at
+      SELECT c.*, w.created_at as saved_at,
+             COALESCE((SELECT AVG(rating) FROM visits v WHERE v.cafe_id = c.id AND v.user_id = ?), c.rating) as avg_rating
       FROM watchlist w
       JOIN cafes c ON w.cafe_id = c.id
       WHERE w.user_id = ?
       ORDER BY w.created_at DESC
-    ''', [userId]);
+    ''', [userId, userId]);
     return res.map((r) {
       final map = Map<String, dynamic>.from(r);
       _enrichCafeMap(map);

@@ -96,8 +96,8 @@ class LocalAuthService {
       'created_at': now,
     });
 
-    // Auto-login setelah register
-    await _saveSession(userId);
+    // Jangan auto-login setelah register, biarkan user login manual
+    // await _saveSession(userId);
     return null; // null = berhasil
   }
 

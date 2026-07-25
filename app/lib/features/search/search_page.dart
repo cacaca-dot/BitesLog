@@ -5,6 +5,7 @@ import '../../services/api_service.dart';
 import '../cafes/cafe_detail_page.dart';
 import '../lists/list_detail_page.dart';
 import '../../core/utils.dart';
+import '../../core/widgets/local_image.dart';
 
 class SearchPage extends StatefulWidget {
   final int initialTabIndex;
@@ -261,14 +262,14 @@ class _CafeSearchTile extends StatelessWidget {
     return ListTile(
       leading: Container(
         width: 50, height: 50,
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: Colors.grey.shade200,
           borderRadius: BorderRadius.circular(8),
-          image: imageUrl != null && imageUrl.isNotEmpty
-              ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
-              : null,
         ),
-        child: imageUrl == null || imageUrl.isEmpty ? const Icon(Icons.local_cafe, color: Colors.grey) : null,
+        child: imageUrl != null && imageUrl.isNotEmpty
+            ? LocalImage(imageUrl, fit: BoxFit.cover)
+            : const Icon(Icons.local_cafe, color: Colors.grey),
       ),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(
@@ -305,15 +306,19 @@ class _ListSearchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = listData['title']?.toString() ?? 'List';
     final count = listData['cafe_count']?.toString() ?? '0';
+    final coverImage = listData['cover_image']?.toString();
     
     return ListTile(
       leading: Container(
         width: 50, height: 50,
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: Colors.grey.shade200,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(Icons.list, color: Colors.grey)
+        child: coverImage != null && coverImage.isNotEmpty
+            ? LocalImage(coverImage, fit: BoxFit.cover)
+            : const Icon(Icons.list, color: Colors.grey)
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text('$count cafe', style: const TextStyle(fontSize: 12)),

@@ -104,12 +104,13 @@ class _DiscoverPageState extends State<DiscoverPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return FractionallySizedBox(
-              heightFactor: 0.8,
+              heightFactor: 1.0,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(

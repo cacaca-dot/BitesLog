@@ -150,7 +150,17 @@ class _CafePickerSheetState extends State<CafePickerSheet> {
                               ),
                             ),
                             title: Text(cafe.name, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.text)),
-                            subtitle: Text(cafe.city, style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+                            subtitle: Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.orange, size: 14),
+                                const SizedBox(width: 4),
+                                Text(cafe.rating > 0 ? cafe.rating.toStringAsFixed(1) : '-', style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(cafe.city, style: const TextStyle(color: AppColors.secondary, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                ),
+                              ],
+                            ),
                             onTap: () => widget.onSelected(cafe),
                           );
                         },
